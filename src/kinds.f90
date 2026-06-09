@@ -21,14 +21,8 @@ module kinds_mod
 
     contains
         
-        !> Procedures for receiving data
-        procedure :: receive_sp
-        procedure :: receive_dp
-        procedure :: receive_i1
-        procedure :: receive_i2
-        procedure :: receive_i4
-        procedure :: receive_i8
-        generic :: receive_data => receive_sp , receive_dp , receive_i1 , receive_i2 , receive_i4 , receive_i8
+        !> Procedure for receiving data
+        procedure :: receive_data
         
         !> Procedure for sorting data
         procedure :: sort_data => sorting_random_data
@@ -36,47 +30,29 @@ module kinds_mod
 
 contains
 
-subroutine receive_sp( this , data_arr )
+subroutine receive_data( this , r_data )
     class(random_data) , intent(inout) :: this
-    real(sp) , intent(in) :: data_arr(:)
-    !> Allocate real data in the polymorphic variable
+    class(*) , intent(in) :: r_data(:)
+
     if (allocated(this%arr)) deallocate(this%arr)
-    allocate( this%arr , source=data_arr )
-end subroutine
-subroutine receive_dp( this , data_arr )
-    class(random_data) , intent(inout) :: this
-    real(dp) , intent(in) :: data_arr(:)
-    !> Allocate real data in the polymorphic variable
-    if (allocated(this%arr)) deallocate(this%arr)
-    allocate( this%arr , source=data_arr )
-end subroutine
-subroutine receive_i1( this , data_arr )
-    class(random_data) , intent(inout) :: this
-    integer(i1) , intent(in) :: data_arr(:)
-    !> Allocate integer data in the polymorphic variable
-    if (allocated(this%arr)) deallocate(this%arr)
-    allocate( this%arr , source=data_arr )
-end subroutine
-subroutine receive_i2( this , data_arr )
-    class(random_data) , intent(inout) :: this
-    integer(i2) , intent(in) :: data_arr(:)
-    !> Allocate integer data in the polymorphic variable
-    if (allocated(this%arr)) deallocate(this%arr)
-    allocate( this%arr , source=data_arr )
-end subroutine
-subroutine receive_i4( this , data_arr )
-    class(random_data) , intent(inout) :: this
-    integer(i4) , intent(in) :: data_arr(:)
-    !> Allocate integer data in the polymorphic variable
-    if (allocated(this%arr)) deallocate(this%arr)
-    allocate( this%arr , source=data_arr )
-end subroutine
-subroutine receive_i8( this , data_arr )
-    class(random_data) , intent(inout) :: this
-    integer(i8) , intent(in) :: data_arr(:)
-    !> Allocate integer data in the polymorphic variable
-    if (allocated(this%arr)) deallocate(this%arr)
-    allocate( this%arr , source=data_arr )
+    
+    select type( r_data )
+        type is ( real(sp) )
+            allocate( this%arr , source=r_data )
+        type is ( real(dp) )
+            allocate( this%arr , source=r_data )
+        type is ( integer(i1) )
+            allocate( this%arr , source=r_data )
+        type is ( integer(i2) )
+            allocate( this%arr , source=r_data )
+        type is ( integer(i4) )
+            allocate( this%arr , source=r_data )
+        type is ( integer(i8) )
+            allocate( this%arr , source=r_data )
+        class default
+            !> If generic_array is a string or an unsupported type, print an error message
+            print *, "Error: data type not supported."
+        end select
 end subroutine
 
 subroutine sorting_random_data( this , pre_ordering , reverse )

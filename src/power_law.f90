@@ -37,22 +37,10 @@ module pl_mod
         procedure :: real_array_rnd => real_array_pl_rnd_number
         procedure :: int_array_rnd => int_array_pl_rnd_number
 
-
-        procedure :: ks_stats_int => empirical_kolmogorov_stats_measure_int
-        procedure :: ks_stats_real => empirical_kolmogorov_stats_measure_real
-        procedure :: ad_stats => empirical_adw_kolmogorov_stats_measure_int !empirical_anderson_darling_weighted_kolmogorov_stats_measure_int !Anderson–Darling stats
-        !procedure :: ad_stats_real => empirical_anderson_darling_weighted_kolmogorov_stats_measure_real !Anderson–Darling stats
-        procedure :: tail_1_stats => empirical_t2w_kolmogorov_stats_measure_int !empirical_tail_1_weighted_kolmogorov_stats_measure_int ! weight in tail: 1/F(x)
-        !procedure :: tail_1_stats_real => empirical_tail_1_weighted_kolmogorov_stats_measure_real ! weight in tail: 1/F(x)
-        procedure :: tail_2_stats => empirical_t2w_kolmogorov_stats_measure_int !empirical_tail_2_weighted_kolmogorov_stats_measure_int ! weight in tail: 1/sqrt(F(x))
-        !procedure :: tail_2_stats_real => empirical_tail_2_weighted_kolmogorov_stats_measure_real ! weight in tail: 1/sqrt(F(x))
-        
-        !procedure :: mle => mle_adjust
-
-        generic :: ks_stats => ks_stats_int, ks_stats_real
-        !generic :: ad_stats => ad_stats_int, ad_stats_real  
-        !generic :: tail_1_stats => tail_1_stats_int, tail_1_stats_real  
-        !generic :: tail_2_stats => tail_2_stats_int, tail_2_stats_real  
+        procedure :: ks_stats => empirical_ks_stats
+        procedure :: ad_stats => empirical_ks_ad_weighted_stats
+        procedure :: t1_stats => empirical_ks_tail1_weighted_stats
+        procedure :: t2_stats => empirical_ks_tail2_weighted_stats
 
     end type
 
@@ -185,9 +173,7 @@ function int_array_pl_rnd_number( this , array_size ) result( pl_int_number )
         pl_int_number = floor( (this%x_min-0.5_dp)*(1.d0-this%rnd_num_gen%rnd_array( array_size ))**(-1.d0/(this%alpha-1.d0)) + 0.5_dp )
 end function
 
-
-
-function core_ks_dp( this , r_data ) result( ks_statistics )
+function empirical_ks_stats( this , r_data ) result( ks_statistics )
     class(power_law) , intent(in) :: this
     class(random_data) , intent(in) :: r_data
     integer(i4) :: i
@@ -233,81 +219,163 @@ function core_ks_dp( this , r_data ) result( ks_statistics )
             print *, "Error: KS Test not supported for this data type."
             return
     end select
-
     ks_statistics = max(KS_plus, KS_minus)
 end function
 
-function empirical_kolmogorov_stats_measure_real( this , data_array ) result( ks_statistics )
+function empirical_ks_ad_weighted_stats( this , r_data ) result( w_statistics )
     class(power_law) , intent(in) :: this
-    real(kind=dp) , intent(in) :: data_array(:)
-    real(kind=dp) KS_plus , KS_minus , ks_statistics
-    integer(kind=i4) i , data_length
-    KS_plus = 0.d0 ; KS_minus = 0.d0
-    data_length = size(data_array)
-    do i = 1,data_length
-        KS_plus = max( KS_plus , (real(i,dp)/real(data_length,dp) - this%cdf(data_array(i))))
-        KS_minus = max( KS_minus , (this%cdf(data_array(i))-(real(i,dp)-1.d0)/real(data_length,dp)))
-    enddo
-    ks_statistics = max(KS_plus,KS_minus)
-endfunction
+    class(random_data) , intent(in) :: r_data
+    integer(i4) :: i
+    real(dp) :: KS_plus , KS_minus , w_statistics , w
+    real(dp) :: real_data_length , current_cdf
+    if ( .not. r_data%sorted_data ) then
+        print*, "Error: data ins't sorted"
+        return
+    endif
 
-function empirical_kolmogorov_stats_measure_int( this , data_array ) result( ks_statistics )
-    class(power_law) , intent(in) :: this
-    integer(kind=i4) , intent(in) :: data_array(:)
-    real(kind=dp) KS_plus , KS_minus , ks_statistics
-    integer(kind=i4) i , data_length
-    KS_plus = 0.d0 ; KS_minus = 0.d0
-    data_length = size(data_array)
-    do i = 1,data_length
-        KS_plus = max( KS_plus , (real(i,dp)/real(data_length,dp) - this%cdf(real(data_array(i),dp))))
-        KS_minus = max( KS_minus , (this%cdf(real(data_array(i),dp))-(real(i,dp)-1.d0)/real(data_length,dp)))
-    enddo
-    ks_statistics = max(KS_plus,KS_minus)
-endfunction
+     select type( a => r_data%arr )
+        
+        type is ( real(dp) )
+            do i = 1 , r_data%length
+                current_cdf = this%cdf( a(i) ) 
+                w = sqrt( ( current_cdf * ( 1._dp - current_cdf) + epsilon(w) ) )
+                KS_plus = max( KS_plus , (real(i,dp)/real_data_length - current_cdf)/w )
+                KS_minus = max( KS_minus , (current_cdf-(real(i,dp)-1.d0)/real_data_length)/w )
+            enddo
+            
+        type is ( real(sp) )
+            do i = 1 , r_data%length
+                current_cdf = this%cdf( a(i) ) 
+                w = sqrt( ( current_cdf * ( 1._dp - current_cdf) + epsilon(w) ) )
+                KS_plus = max( KS_plus , (real(i,dp)/real_data_length - current_cdf)/w )
+                KS_minus = max( KS_minus , (current_cdf-(real(i,dp)-1.d0)/real_data_length)/w )
+            enddo
 
-function empirical_adw_kolmogorov_stats_measure_int( this , data_array) result( w_statistics )
-    class(power_law) , intent(in) :: this
-    integer(kind=i4) , intent(in) :: data_array(:)
-    real(kind=dp) KS_plus , KS_minus , w_statistics , w
-    integer(kind=i4) i , data_length
-    KS_plus = 0.d0 ; KS_minus = 0.d0
-    data_length = size(data_array)
-    do i = 1,data_length
-        w = sqrt( ( this%cdf(data_array(i)) * ( 1._dp - this%cdf(data_array(i))) + 1.d-20 ) )
-        KS_plus = max( KS_plus , (real(i,dp)/real(data_length,dp) - this%cdf(data_array(i)))/w )
-        KS_minus = max( KS_minus , (this%cdf(real(data_array(i),dp))-(real(i,dp)-1.d0)/real(data_length,dp))/w )
-    enddo
-   w_statistics = max(KS_plus,KS_minus)
-endfunction
+        type is ( integer(i4) )
+            do i = 1 , r_data%length
+                current_cdf = this%cdf( a(i) ) 
+                w = sqrt( ( current_cdf * ( 1._dp - current_cdf) + epsilon(w) ) )
+                KS_plus = max( KS_plus , (real(i,dp)/real_data_length - current_cdf)/w )
+                KS_minus = max( KS_minus , (current_cdf-(real(i,dp)-1.d0)/real_data_length)/w )
+            enddo
 
-function empirical_t1w_kolmogorov_stats_measure_int( this , data_array) result( w_statistics )
-    class(power_law) , intent(in) :: this
-    integer(kind=i4) , intent(in) :: data_array(:)
-    real(kind=dp) KS_plus , KS_minus , w_statistics , w
-    integer(kind=i4) i , data_length
-    KS_plus = 0.d0 ; KS_minus = 0.d0
-    data_length = size(data_array)
-    do i = 1,data_length
-        w = ( this%cdf(data_array(i)) + 1.d-20 )
-        KS_plus = max( KS_plus , (real(i,dp)/real(data_length,dp) - this%cdf(data_array(i)))/w )
-        KS_minus = max( KS_minus , (this%cdf(real(data_array(i),dp))-(real(i,dp)-1.d0)/real(data_length,dp))/w )
-    enddo
-    w_statistics = max(KS_plus,KS_minus)
-endfunction
+        type is ( integer(i8) )
+            do i = 1 , r_data%length
+                current_cdf = this%cdf( a(i) ) 
+                w = sqrt( ( current_cdf * ( 1._dp - current_cdf) + epsilon(w) ) )
+                KS_plus = max( KS_plus , (real(i,dp)/real_data_length - current_cdf)/w )
+                KS_minus = max( KS_minus , (current_cdf-(real(i,dp)-1.d0)/real_data_length)/w )
+            enddo
 
-function empirical_t2w_kolmogorov_stats_measure_int( this , data_array) result( w_statistics )
+        class default
+            print *, "Error: Stats Test not supported for this data type."
+            return
+    end select
+    w_statistics = max(KS_plus, KS_minus)
+end function
+
+function empirical_ks_tail1_weighted_stats( this , r_data ) result( w_statistics )
     class(power_law) , intent(in) :: this
-    integer(kind=i4) , intent(in) :: data_array(:)
-    real(kind=dp) KS_plus , KS_minus , w_statistics , w
-    integer(kind=i4) i , data_length
-    KS_plus = 0.d0 ; KS_minus = 0.d0
-    data_length = size(data_array)
-    do i = 1,data_length
-        w = sqrt( ( this%cdf(data_array(i)) + 1.d-20 ) )
-        KS_plus = max( KS_plus , (real(i,dp)/real(data_length,dp) - this%cdf(data_array(i)))/w )
-        KS_minus = max( KS_minus , (this%cdf(real(data_array(i),dp))-(real(i,dp)-1.d0)/real(data_length,dp))/w )
-    enddo
-    w_statistics = max(KS_plus,KS_minus)
-endfunction
+    class(random_data) , intent(in) :: r_data
+    integer(i4) :: i
+    real(dp) :: KS_plus , KS_minus , w_statistics , w
+    real(dp) :: real_data_length , current_cdf
+    if ( .not. r_data%sorted_data ) then
+        print*, "Error: data ins't sorted"
+        return
+    endif
+
+     select type( a => r_data%arr )
+        
+        type is ( real(dp) )
+            do i = 1 , r_data%length
+                current_cdf = this%cdf( a(i) ) 
+                w = sqrt( ( current_cdf + epsilon(w) ) )
+                KS_plus = max( KS_plus , (real(i,dp)/real_data_length - current_cdf)/w )
+                KS_minus = max( KS_minus , (current_cdf-(real(i,dp)-1.d0)/real_data_length)/w )
+            enddo
+            
+        type is ( real(sp) )
+            do i = 1 , r_data%length
+                current_cdf = this%cdf( a(i) ) 
+                w = sqrt( ( current_cdf + epsilon(w) ) )
+                KS_plus = max( KS_plus , (real(i,dp)/real_data_length - current_cdf)/w )
+                KS_minus = max( KS_minus , (current_cdf-(real(i,dp)-1.d0)/real_data_length)/w )
+            enddo
+
+        type is ( integer(i4) )
+            do i = 1 , r_data%length
+                current_cdf = this%cdf( a(i) ) 
+                w = sqrt( ( current_cdf + epsilon(w) ) )
+                KS_plus = max( KS_plus , (real(i,dp)/real_data_length - current_cdf)/w )
+                KS_minus = max( KS_minus , (current_cdf-(real(i,dp)-1.d0)/real_data_length)/w )
+            enddo
+
+        type is ( integer(i8) )
+            do i = 1 , r_data%length
+                current_cdf = this%cdf( a(i) ) 
+                w = sqrt( ( current_cdf + epsilon(w) ) )
+                KS_plus = max( KS_plus , (real(i,dp)/real_data_length - current_cdf)/w )
+                KS_minus = max( KS_minus , (current_cdf-(real(i,dp)-1.d0)/real_data_length)/w )
+            enddo
+
+        class default
+            print *, "Error: Stats Test not supported for this data type."
+            return
+    end select
+    w_statistics = max(KS_plus, KS_minus)
+end function
+
+function empirical_ks_tail2_weighted_stats( this , r_data ) result( w_statistics )
+    class(power_law) , intent(in) :: this
+    class(random_data) , intent(in) :: r_data
+    integer(i4) :: i
+    real(dp) :: KS_plus , KS_minus , w_statistics , w
+    real(dp) :: real_data_length , current_cdf
+    if ( .not. r_data%sorted_data ) then
+        print*, "Error: data ins't sorted"
+        return
+    endif
+
+     select type( a => r_data%arr )
+        
+        type is ( real(dp) )
+            do i = 1 , r_data%length
+                current_cdf = this%cdf( a(i) ) 
+                w = ( current_cdf + epsilon(w) )
+                KS_plus = max( KS_plus , (real(i,dp)/real_data_length - current_cdf)/w )
+                KS_minus = max( KS_minus , (current_cdf-(real(i,dp)-1.d0)/real_data_length)/w )
+            enddo
+            
+        type is ( real(sp) )
+            do i = 1 , r_data%length
+                current_cdf = this%cdf( a(i) ) 
+                w = ( current_cdf + epsilon(w) )
+                KS_plus = max( KS_plus , (real(i,dp)/real_data_length - current_cdf)/w )
+                KS_minus = max( KS_minus , (current_cdf-(real(i,dp)-1.d0)/real_data_length)/w )
+            enddo
+
+        type is ( integer(i4) )
+            do i = 1 , r_data%length
+                current_cdf = this%cdf( a(i) ) 
+                w = ( current_cdf + epsilon(w) )
+                KS_plus = max( KS_plus , (real(i,dp)/real_data_length - current_cdf)/w )
+                KS_minus = max( KS_minus , (current_cdf-(real(i,dp)-1.d0)/real_data_length)/w )
+            enddo
+
+        type is ( integer(i8) )
+            do i = 1 , r_data%length
+                current_cdf = this%cdf( a(i) ) 
+                w = ( current_cdf + epsilon(w) )
+                KS_plus = max( KS_plus , (real(i,dp)/real_data_length - current_cdf)/w )
+                KS_minus = max( KS_minus , (current_cdf-(real(i,dp)-1.d0)/real_data_length)/w )
+            enddo
+
+        class default
+            print *, "Error: Stats Test not supported for this data type."
+            return
+    end select
+    w_statistics = max(KS_plus, KS_minus)
+end function
 
 end module pl_mod
