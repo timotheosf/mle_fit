@@ -20,3 +20,8 @@ source-form = "free"
 [dependencies]
 stdlib = "*"
 rndgen-fortran.git = "https://github.com/wcota/rndgen-fortran"
+
+[[executable]]
+name = "synth_data"
+source-dir = "app"
+main = "synth_data.f90"
