@@ -9,7 +9,7 @@ real(dp) , allocatable :: r_data( : , : )
 real(dp) :: x_min , mle_x_min , mle_alpha , lambda , time_fit , time_pvalued
 type(clock_time) :: clock_control
 type(empirical_pl) :: pl_1 , pl_2
-type(rndgen) :: gen , gen
+type(rndgen) :: gen
 integer(i4) :: seed = 294727492 , time_values(8)
 integer(i4) :: i , j , case , io , n_tail(5) , samples , time_OPM_unit , fit_unit
 integer(i4) , allocatable :: arr( : )
