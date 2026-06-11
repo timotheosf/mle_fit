@@ -118,6 +118,8 @@ subroutine receive_data_from_file( this , file_unit , skip_title )
     do i = 1 , file_len
         read(file_unit,*) this%arr(i)
     enddo
+
+    call this%sort_data()
 end subroutine
     
 
