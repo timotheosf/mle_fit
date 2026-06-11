@@ -9,7 +9,7 @@ real(dp) , allocatable :: r_data( : , : )
 real(dp) :: x_min , mle_x_min , mle_alpha , lambda , time_fit , time_pvalued
 type(clock_time) :: clock_control
 type(empirical_pl) :: pl_1 , pl_2
-type(rndgen) :: gen_1 , gen_2
+type(rndgen) :: gen , gen
 integer(i4) :: seed = 294727492 , time_values(8)
 integer(i4) :: i , j , case , io , n_tail(5) , samples , time_OPM_unit , fit_unit
 integer(i4) , allocatable :: arr( : )
@@ -18,8 +18,7 @@ open(newunit=time_OPM_unit, file="benchmark_OPM.dat", status="replace", action="
 open(newunit=fit_unit     , file="benchmark_fit.dat", status="replace", action="write")
 
 call date_and_time(values=time_values) !> Get a random seed based on time
-call gen_1%init( time_values(8) + 1000*time_values(7) + 60000*time_values(6) + 3600000*time_values(5) )
-call gen_2%init( 2*(time_values(8) + 1000*time_values(7) + 60000*time_values(6) + 3600000*time_values(5)) )
+call gen%init( time_values(8) + 1000*time_values(7) + 60000*time_values(6) + 3600000*time_values(5) )
 
 write( time_OPM_unit , * ) "N case time_fit time_pvalued"
 write( fit_unit , * ) "N case x_min alpha p_value"
@@ -32,9 +31,9 @@ do samples = 1 , size(N)
         x_min = real(N(samples) - n_tail(i),dp)
         do j=1,N(samples)
             if ( j <= n_tail(i) ) then
-                r_data(i,j) = x_min*(1.d0-gen_2%rnd())**(-1.d0/(alpha-1.d0))
+                r_data(i,j) = x_min*(1.d0-gen%rnd())**(-1.d0/(alpha-1.d0))
             else
-                r_data(i,j) = gen_2%real(0.001_dp,x_min)
+                r_data(i,j) = gen%real(0.001_dp,x_min)
             endif
         enddo
         !> Time control for fit 
