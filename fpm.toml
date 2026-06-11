@@ -23,6 +23,6 @@ stdlib = "*"
 rndgen-fortran.git = "https://github.com/wcota/rndgen-fortran"
 
 [[executable]]
-name = "synth_data"
+name = "benchmark"
 source-dir = "app"
-main = "synth_data.f90"
+main = "benchmark.f90"
