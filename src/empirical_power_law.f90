@@ -217,13 +217,13 @@ function p_value_test( this , N_samples ) result(p_value)
     thread_id = 0 !> Secure default value 
     call date_and_time(values=time_values) !> Get a random seed based on time
     base_seed = time_values(8) + 1000*time_values(7) + 60000*time_values(6) + 3600000*time_values(5)
-    allocate( r_data(N) , synth_data(N) )
 
     !--- Parallel proceding ---!
     !$omp parallel private(thread_id, j, i, r_data, synth_data, synth_pl, synth_ks, thread_gen)
     !> This clones the variables in each thread
     !$ thread_id = omp_get_thread_num() !> Gets the thread ID used in OpenMP
     call thread_gen%init( base_seed + thread_id ) !> Initializes each generator by a seed deppending on the thread_id
+    allocate( r_data(N) , synth_data(N) )
 
     !$omp do reduction(+:hits) !> This creates privates hits variables and safelly summation the result
     !--- Main loop ---!
