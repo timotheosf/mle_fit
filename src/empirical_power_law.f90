@@ -197,7 +197,7 @@ subroutine p_value_test( this , N_samples , p_value )
     integer(i4) , intent(in) , optional :: N_samples !> Number of samples is optional; standard = 1000
     real(dp) , intent(out) , optional :: p_value
     type(empirical_pl) :: synth_pl  !> PL fitted in the synthetic data
-    type(rndgen) :: thread_gen      !> Thread independent random number generator for OpenMP
+    type(rndgen) :: thread_gen_1 , thread_gen_2      !> Thread independent random number generator for OpenMP
     real(dp) :: ks , p_tail , synth_ks , real_ks , lambda
     integer(i4) :: i , N_trials , N , time_values(8) , hits , j , base_seed
     integer(i4) :: thread_id  , max_noise_idx , synth_head_size
@@ -220,23 +220,28 @@ subroutine p_value_test( this , N_samples , p_value )
     base_seed = time_values(8) + 1000*time_values(7) + 60000*time_values(6) + 3600000*time_values(5)
 
     !--- Parallel proceding ---!
-    !$omp parallel private(thread_id, j, i, random_chooses, synth_data, synth_pl, synth_ks, thread_gen)
+    !$omp parallel private(thread_id, j, i, random_chooses, synth_data, synth_pl, synth_ks, thread_gen_1 , thread_gen_2)
     !> This clones the variables in each thread
     !$ thread_id = omp_get_thread_num() !> Gets the thread ID used in OpenMP
-    call thread_gen%init( base_seed + thread_id ) !> Initializes each generator by a seed deppending on the thread_id
+    call thread_gen_1%init( base_seed + thread_id * 1999  ) !> Initializes each generator by a seed deppending on the thread_id
+    call thread_gen_2%init( base_seed + thread_id * 3999 + 104729  ) !> Initializes each generator by a seed deppending on the thread_id
     allocate( random_chooses(N) , synth_data(N) )
 
     !$omp do reduction(+:hits) !> This creates privates hits variables and safelly summation the result
     !--- Main loop ---!
     sampling_loop: do j = 1 , N_trials
-        random_chooses = thread_gen%rnd_array( N ) !> Random N-arr
-        synth_head_size = count(random_chooses > p_tail)
+        synth_head_size = 0
+        do i=1,N
+            random_chooses(i) = thread_gen_1%rnd()  !> Random N-arr    
+            synth_data(i) = thread_gen_2%rnd() !> Random N-arr
+            if ( random_chooses(i) > p_tail ) synth_head_size = synth_head_size + 1
+        enddo
         if (this%data%data_is_discrete) then
-            synth_data( synth_head_size+1 : N ) = floor((this%x_min-0.5_dp)*(1.d0-thread_gen%rnd_array(N-synth_head_size))**(-1.d0/(this%alpha-1.d0))+0.5_dp)
+            synth_data( synth_head_size+1 : N ) = floor((this%x_min-0.5_dp)*(1.d0-synth_data( synth_head_size+1 : N ))**(-1.d0/(this%alpha-1.d0))+0.5_dp)
         else
-            synth_data( synth_head_size+1 : N ) = this%x_min*(1.d0-thread_gen%rnd_array(N-synth_head_size))**(-1.d0/(this%alpha-1.d0))
+            synth_data( synth_head_size+1 : N ) = this%x_min*(1.d0-synth_data( synth_head_size+1 : N ))**(-1.d0/(this%alpha-1.d0))
         endif
-        synth_data( 1:synth_head_size ) = this%data%arr( thread_gen%rnd_array( synth_head_size , 1 , max_noise_idx ) )
+        synth_data( 1:synth_head_size ) = this%data%arr( floor(real((max_noise_idx),dp)*synth_data( 1:synth_head_size ),kind=i4) + 1 )
         
         !> Each synthetic data is fitted independented
         call synth_pl%fast_fit( synth_data , ks=synth_ks , lambda_in=this%lambda_used , use_weight=this%weighted_adjust , synth_data_treat_as_discrete=this%data%data_is_discrete )
