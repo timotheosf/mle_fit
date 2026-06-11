@@ -28,6 +28,18 @@ module kinds_mod
         procedure :: sort_data => sorting_random_data
     end type
 
+    type :: clock_time !> A benchmark time class
+        integer(i4) :: time_at_start
+        integer(i4) :: time_at_stop
+        real(dp) :: elapsed
+        real(dp) :: time_rate
+    
+    contains
+        procedure :: start => start_time_count
+        procedure ::  stop =>  stop_time_count
+        procedure :: total => elapsed_time
+    endtype
+
 contains
 
 subroutine receive_data( this , r_data )
@@ -91,5 +103,25 @@ subroutine sorting_random_data( this , pre_ordering , reverse )
     this%len = size( this%arr )
     this%real_len = real( size( this%arr ) , dp )
 end subroutine
+
+subroutine start_time_count( this )
+    class(clock_time) , intent(inout) :: this
+    integer(i4) :: rate
+    call system_clock(count_rate=rate)
+    this%time_rate = real(rate,dp)
+    call system_clock(count=this%time_at_start)
+end subroutine
+
+subroutine stop_time_count( this )
+    class(clock_time) , intent(inout) :: this    
+    call system_clock(count=this%time_at_stop)
+    this%elapsed = real( this%time_at_stop - this%time_at_start , dp ) / this%time_rate
+end subroutine
+
+function elapsed_time( this ) result( elapsed_seconds )
+    class(clock_time) , intent(in) :: this
+    real(dp) :: elapsed_seconds
+    elapsed_seconds = real( this%time_at_stop - this%time_at_start , dp ) / this%time_rate
+end function
 
 end module kinds_mod    
