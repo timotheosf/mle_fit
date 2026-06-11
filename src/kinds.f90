@@ -22,8 +22,9 @@ module kinds_mod
         !> Flag to save in the memory if data is already sorted
         logical :: sorted_data  
     contains
-        !> Procedure for receiving data
-        procedure :: receive_data        
+        !> Procedures for receiving data
+        procedure :: receive_data     
+        procedure :: from_file => receive_data_from_file   
         !> Procedure for sorting data
         procedure :: sort_data => sorting_random_data
     end type
@@ -72,11 +73,53 @@ subroutine receive_data( this , r_data )
             this%arr = real(r_data, dp)
         class default
             !> If generic_array is a string or an unsupported type, print an error message
-            print *, "Error: data type not supported."
+            error stop "Error: data type not supported."
         end select
 
         this%sorted_data = .FALSE.
 end subroutine
+
+subroutine receive_data_from_file( this , file_unit , skip_title )
+    class(random_data) , intent(inout) :: this
+    integer(i4) , intent(in) :: file_unit
+    logical , intent(in) , optional :: skip_title
+    character(len=50) :: string
+    integer(i4) :: io_status , file_len , i
+    logical :: x_is_integer , last_x_is_integer
+    
+    rewind( file_unit ) !> Rewind file passed
+
+    if (present(skip_title)) then
+        if (skip_title) read(file_unit,*)
+    endif
+
+    file_len = 0
+    read_file: do
+        read(file_unit,*, iostat=io_status) string
+        if ( io_status/=0 ) exit read_file
+        if (index(string, '.')==0) then
+            x_is_integer = .TRUE.
+        else
+            x_is_integer = .FALSE.
+        endif
+        if (file_len/=0) then
+            if ( x_is_integer .neqv. last_x_is_integer ) error stop "Error: data type must be unique"
+        endif
+        last_x_is_integer = x_is_integer
+        file_len = file_len + 1
+    enddo read_file
+    if (file_len == 0) error stop "Error: file doens't have any data"
+    this%data_is_discrete = x_is_integer
+    rewind( file_unit ) !> Rweind file again
+    if (present(skip_title)) then
+        if (skip_title) read(file_unit,*)
+    endif
+    allocate( this%arr(file_len) )
+    do i = 1 , file_len
+        read(file_unit,*) this%arr(i)
+    enddo
+end subroutine
+    
 
 subroutine sorting_random_data( this , pre_ordering , reverse )
     !> This subroutines plays the role of an interface to ordering the data
