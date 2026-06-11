@@ -1,4 +1,4 @@
-module power_law_mle_fit_mod
+module empirical_pl_mod
     use kinds_mod
     use pl_mod
     use rndgen_mod
@@ -191,22 +191,23 @@ subroutine find_best_parameters( this , r_data , xmin , alpha , std_alpha , ks ,
     if (apply_weight) deallocate(w)
 end subroutine
 
-function p_value_test( this , N_samples ) result(p_value)
+subroutine p_value_test( this , N_samples , p_value )
     !$ use omp_lib    !> Includes parallel processing
     class(empirical_pl) , intent(inout) :: this
     integer(i4) , intent(in) , optional :: N_samples !> Number of samples is optional; standard = 1000
+    real(dp) , intent(out) , optional :: p_value
     type(empirical_pl) :: synth_pl  !> PL fitted in the synthetic data
     type(rndgen) :: thread_gen      !> Thread independent random number generator for OpenMP
-    real(dp) :: ks , p_tail , synth_ks , real_ks , p_value , lambda
-    integer(i4) :: i , N_rep , N , time_values(8) , hits , j , base_seed
+    real(dp) :: ks , p_tail , synth_ks , real_ks , lambda
+    integer(i4) :: i , N_trials , N , time_values(8) , hits , j , base_seed
     integer(i4) :: thread_id  , max_noise_idx
     real(dp) , allocatable :: r_data( : ) , synth_data( : )
     !--- Initializing ---!
     ! 1. Samples used
     if (present(N_samples)) then
-        N_rep = N_samples
+        N_trials = N_samples
     else
-        N_rep = 1000
+        N_trials = 1000
     endif
 
     real_ks = this%stats 
@@ -227,7 +228,7 @@ function p_value_test( this , N_samples ) result(p_value)
 
     !$omp do reduction(+:hits) !> This creates privates hits variables and safelly summation the result
     !--- Main loop ---!
-    do j = 1 , N_rep
+    do j = 1 , N_trials
         r_data = thread_gen%rnd_array( N ) !> Random N-arr
         do i = 1 , N
             !> Generating the synthetic data
@@ -254,10 +255,10 @@ function p_value_test( this , N_samples ) result(p_value)
     !$omp end parallel
     !--- End parallel proceding ---!
     !> Returns the p-value
-    p_value = real(hits,dp)/real(N_rep,dp)
-    this%goodness_of_fit = p_value !> Saves the p_value in the internal variable
+    if (present(p_value)) p_value = real(hits,dp)/real(N_trials,dp)
+    this%goodness_of_fit = real(hits,dp)/real(N_trials,dp) !> Saves the p_value in the internal variable
     this%was_pvalued = .TRUE.
-end function
+end subroutine
 
 subroutine print_report( this )
     class(empirical_pl) , intent(in) :: this
@@ -273,4 +274,4 @@ subroutine print_report( this )
     print*, "============================"
 end subroutine
 
-end module power_law_mle_fit_mod
+end module empirical_pl_mod
