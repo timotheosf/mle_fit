@@ -170,7 +170,7 @@ subroutine find_best_parameters( this , r_data , xmin , alpha , std_alpha , ks ,
     call this%update_internals( mle_xmin , mle_alpha )
     this%stats = ks_statistics ; this%n_tail = tail_len ; this%std_alpha = candidate_std_alpha           
     this%weighted_adjust = apply_weight ; this%lambda_used = lambda
-    this%was_fitted = .TRUE.
+    this%was_pvalued = .FALSE. ; this%was_fitted = .TRUE.
     !> In the case if one uses external variables
     if (present(xmin)) xmin = mle_xmin
     if (present(alpha)) alpha = mle_alpha
@@ -220,7 +220,7 @@ subroutine p_value_test( this , N_samples , p_value )
     base_seed = time_values(8) + 1000*time_values(7) + 60000*time_values(6) + 3600000*time_values(5)
 
     !--- Parallel proceding ---!
-    !$omp parallel private(thread_id, j, i, random_chooses, synth_data, synth_pl, synth_ks, thread_gen_1 , thread_gen_2)
+    !$omp parallel private(thread_id, j, i, random_chooses, synth_data, synth_pl, synth_ks, thread_gen_1 , thread_gen_2, synth_head_size)
     !> This clones the variables in each thread
     !$ thread_id = omp_get_thread_num() !> Gets the thread ID used in OpenMP
     call thread_gen_1%init( base_seed + thread_id * 1999  ) !> Initializes each generator by a seed deppending on the thread_id
