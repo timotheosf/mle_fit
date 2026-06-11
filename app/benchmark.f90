@@ -48,6 +48,7 @@ do samples = 1 , size(N)
         call clock_control%stop()
         time_pvalued = clock_control%elapsed
         write( time_OPM_unit , * ) N(samples) , "pl_1" , time_fit , time_pvalued
+        print*, N(samples) , "pl_1" , time_fit , time_pvalued
         call clock_control%start()
         call pl_2%init( r_data( i , : ) )
         call pl_2%fast_fit( )
@@ -58,6 +59,7 @@ do samples = 1 , size(N)
         call clock_control%stop()
         time_pvalued = clock_control%elapsed
         write( time_OPM_unit , * ) N(samples) , "pl_2" , time_fit , time_pvalued
+        print*, N(samples) , "pl_2" , time_fit , time_pvalued
 
         write( fit_unit , * ) N(samples) , "real" , x_min , alpha , ""
         write( fit_unit , * ) N(samples) , "pl_1" , pl_1%x_min , pl_1%alpha , pl_1%goodness_of_fit
