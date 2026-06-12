@@ -23,6 +23,7 @@ module empirical_pl_mod
         logical , private  :: weighted_adjust   !> Flag to save the weighted used in the adjust
         logical , private  :: was_fitted        !> Control flag: was this fitted?
         logical , private  :: was_pvalued       !> Control flag: was this p_valued?
+        logical , private  :: history_tracked   !> Control flag: was the history tracked?
         real(dp) , private :: lambda_used       !> Internal variable
 
         !> Workspace arrays for fast MLE fitting (Private to avoid clutter)
@@ -33,6 +34,7 @@ module empirical_pl_mod
         real(dp) , allocatable , private :: wrk_seq(:)
         real(dp) , allocatable , private :: wrk_w(:)
         real(dp) , allocatable , private :: wrk_log_x(:)
+        real(dp) ,               private :: offset_used
 
     contains
 
@@ -84,16 +86,13 @@ subroutine start_adjust_parameters( this , r_data , pre_ordering )
     this%was_pvalued = .FALSE. ; this%was_fitted = .FALSE.
 end subroutine
 
-subroutine fitting_loop_cyclce( this , weight , history , lambda_in , offset , &
-        mle_xmin , mle_alpha , tail_len , candidate_std_alpha , ks_statistics , non_zero_idx , &
+subroutine fitting_loop_cyclce( this , &
+        mle_xmin , mle_alpha , candidate_std_alpha , ks_statistics , non_zero_idx , &
         mle_x_min_arr , mle_alpha_arr , mle_std_alpha_arr , mle_stats_arr )
     class(empirical_pl) , intent(inout) :: this
-    !> Control variables
-    logical  , intent(in) :: weight , history
-    real(dp) , intent(in) :: lambda_in , offset
     !> Outputs (Best parameters found)
     real(dp) , intent(out) :: mle_xmin , mle_alpha , candidate_std_alpha , ks_statistics
-    integer(i4), intent(out) :: tail_len , non_zero_idx
+    integer(i4), intent(out) :: non_zero_idx
     !> Optional Outputs (History tracking)
     real(dp) , intent(out) , optional :: mle_x_min_arr(:) , mle_alpha_arr(:) , mle_std_alpha_arr(:) , mle_stats_arr(:)
     !> Local variables
@@ -106,14 +105,11 @@ subroutine fitting_loop_cyclce( this , weight , history , lambda_in , offset , &
     N = size( this%data%arr )
     ks_statistics = huge(1.0_dp)
     non_zero_idx = 0
-    !> Pre-calculations (O(N) setup before main loop) 
-    this%wrk_log_x(1:N) = log(this%data%arr(1:N))
-    this%wrk_sum_log_x(N) = this%wrk_log_x(N)
-    this%wrk_seq(N) = real(N, dp)
-    do i = N-1 , 1 , -1
-        this%wrk_sum_log_x(i) = this%wrk_sum_log_x(i+1) + this%wrk_log_x(i)
-        this%wrk_seq(i) = real(i, dp)
-    enddo
+    !> Safe defaults against NaN failures
+    mle_xmin = this%data%arr(1)
+    mle_alpha = 1.0_dp
+    candidate_std_alpha = 0.0_dp
+    this%n_tail = N
     !> Main loop
     mle_main_loop: do i = 1 , N-1
         if ( i > 1 ) then !> Avoid repeated x_min candidates
@@ -125,7 +121,7 @@ subroutine fitting_loop_cyclce( this , weight , history , lambda_in , offset , &
         N_tail = real(n_tail_int, dp)     !> Real aux for calculations
 
         !> O(1) calculation of alpha
-        log_sum = this%wrk_sum_log_x(i) - N_tail*log( candidate_xmin-offset )
+        log_sum = this%wrk_sum_log_x(i) - N_tail*log( candidate_xmin-this%offset_used )
         candidate_alpha = 1.0_dp + N_tail/log_sum
          
         !> Fully vectorized O(N_tail) calculation of ks_stats
@@ -133,7 +129,7 @@ subroutine fitting_loop_cyclce( this , weight , history , lambda_in , offset , &
         alpha_minus_1 = candidate_alpha - 1.0_dp
         !> Optimized form for CDF evaluation
         this%wrk_current_cdf( 1:n_tail_int ) = 1.0_dp - exp( alpha_minus_1 * (log_xmin - this%wrk_log_x(i:N)) )
-        if ( weight ) then
+        if ( this%weighted_adjust ) then
             this%wrk_w( 1:n_tail_int ) = 1._dp/sqrt( (this%wrk_current_cdf(1:n_tail_int)*(1._dp-this%wrk_current_cdf(1:n_tail_int))+eps) ) 
             this%wrk_ks_plus( 1:n_tail_int ) = ((this%wrk_seq( 1:n_tail_int ) / N_tail) - this%wrk_current_cdf( 1:n_tail_int ))*this%wrk_w( 1:n_tail_int )
             this%wrk_ks_minus( 1:n_tail_int ) = (this%wrk_current_cdf( 1:n_tail_int ) - ((this%wrk_seq( 1:n_tail_int ) - 1.0_dp) / N_tail))*this%wrk_w( 1:n_tail_int )
@@ -142,15 +138,15 @@ subroutine fitting_loop_cyclce( this , weight , history , lambda_in , offset , &
             this%wrk_ks_minus( 1:n_tail_int ) = this%wrk_current_cdf( 1:n_tail_int ) - ((this%wrk_seq( 1:n_tail_int ) - 1.0_dp) / N_tail)
         endif
         !> The current stats is update by this functional
-        current_ks = max( maxval(this%wrk_ks_minus( 1:n_tail_int )), maxval(this%wrk_ks_plus( 1:n_tail_int )) ) - lambda_in*((N_tail/real(N,dp))**2)
+        current_ks = max( maxval(this%wrk_ks_minus( 1:n_tail_int )), maxval(this%wrk_ks_plus( 1:n_tail_int )) ) - this%lambda_used*((N_tail/real(N,dp))**2)
         if ( current_ks <= ks_statistics ) then
-            tail_len = n_tail_int           
+            this%n_tail = n_tail_int           
             mle_alpha = candidate_alpha     
             mle_xmin = candidate_xmin       
             candidate_std_alpha = (candidate_alpha-1.0_dp)/sqrt( N_tail ) 
             ks_statistics = current_ks  
             
-            if ( history ) then
+            if ( this%history_tracked ) then
                 non_zero_idx = non_zero_idx + 1
                 if (present(mle_x_min_arr)) mle_x_min_arr(non_zero_idx) = mle_xmin
                 if (present(mle_alpha_arr)) mle_alpha_arr(non_zero_idx) = mle_alpha
@@ -173,14 +169,16 @@ subroutine find_best_parameters( this , r_data , xmin , alpha , std_alpha , ks ,
     !> Only arrays needed dynamically here are for tracking history (if requested)
     real(dp) , allocatable :: mle_x_min_arr(:) , mle_alpha_arr(:) , mle_std_alpha_arr(:) , mle_stats_arr(:)
     real(dp) :: ks_statistics, offset, lambda, mle_xmin, mle_alpha, candidate_std_alpha
-    integer(i4) :: N, tail_len, non_zero_idx
+    integer(i4) :: N, tail_len, non_zero_idx , i
     logical  :: apply_weight, save_history
     
     !--- Initializing ---!
-    if (present(r_data)) then ! 1. Receive and sort the generic data
+    if (present(r_data)) then 
         call this%init( r_data )
     else if (.not. allocated(this%data%arr)) then
         error stop "Error: data not present in Empirical PL class"
+    else if (.not. this%data%sorted_data) then
+        call this%data%sort_data() 
     endif
     N = this%data%len
     ! 2. Defines the offset based in the data original type
@@ -192,39 +190,45 @@ subroutine find_best_parameters( this , r_data , xmin , alpha , std_alpha , ks ,
     if (present(synth_data_treat_as_discrete)) then
         if (synth_data_treat_as_discrete) offset = 0.5_dp
     endif
+    this%offset_used = offset
     ! 3. Applies the lambda_in penality for the adjust
     if (present(lambda_in)) then
         lambda = lambda_in
     else
         lambda = 0.0_dp
     endif
+    this%lambda_used = lambda
     ! 4. Defines the weight, if it's the case
     if (present(use_weight)) then
         apply_weight = use_weight
     else
         apply_weight = .TRUE. 
     endif
+    this%weighted_adjust = apply_weight
     ! 5. Only allocate history tracking arrays if explicitly requested
     if (present(track_history)) then
         save_history = track_history
     else
         save_history = .FALSE.
     endif
+    this%history_tracked = save_history
     if (save_history) then
         allocate( mle_x_min_arr(N) , mle_alpha_arr(N) , mle_std_alpha_arr(N) , mle_stats_arr(N) )
     endif
     ! 6. Allocationg workspace (if needed)
     call this%allocate_workspace( N )
-    
+    !> Pre-calculations (O(N) setup before main loop) 
+    this%wrk_log_x(1:N) = log(this%data%arr(1:N))
+    this%wrk_sum_log_x(N) = this%wrk_log_x(N)
+    this%wrk_seq(N) = real(N, dp)
+    do i = N-1 , 1 , -1
+        this%wrk_sum_log_x(i) = this%wrk_sum_log_x(i+1) + this%wrk_log_x(i)
+        this%wrk_seq(i) = real(i, dp)
+    enddo
     !--- Main Loop ---!
     call this%loop_workspace( &
-        weight = apply_weight, &
-        history = save_history, &
-        lambda_in = lambda, &
-        offset = offset, &
         mle_xmin = mle_xmin, &
         mle_alpha = mle_alpha, &
-        tail_len = tail_len, &
         candidate_std_alpha = candidate_std_alpha, &
         ks_statistics = ks_statistics, &
         non_zero_idx = non_zero_idx, &
@@ -237,10 +241,9 @@ subroutine find_best_parameters( this , r_data , xmin , alpha , std_alpha , ks ,
     !--- Updating Empirical PL State ---!
     call this%update_internals( mle_xmin , mle_alpha )
     this%stats = ks_statistics
-    this%n_tail = tail_len
     this%std_alpha = candidate_std_alpha           
-    this%weighted_adjust = apply_weight
-    this%lambda_used = lambda
+    !this%weighted_adjust = apply_weight
+    !this%lambda_used = lambda
     this%was_pvalued = .FALSE.
     this%was_fitted = .TRUE.
 
@@ -251,7 +254,7 @@ subroutine find_best_parameters( this , r_data , xmin , alpha , std_alpha , ks ,
     if (present(std_alpha)) std_alpha = candidate_std_alpha
 
     !--- History Persistence ---!
-    if (save_history) then
+    if (this%history_tracked) then
         if (allocated(this%x_min_arr)) deallocate(this%x_min_arr, this%alpha_arr, this%std_alpha_arr, this%stats_arr)
         allocate( this%x_min_arr(non_zero_idx) , this%alpha_arr(non_zero_idx) , this%std_alpha_arr(non_zero_idx) , this%stats_arr(non_zero_idx) )
         this%x_min_arr(1:non_zero_idx) = mle_x_min_arr( 1:non_zero_idx )
@@ -294,8 +297,8 @@ subroutine p_value_test( this , N_samples , p_value )
     !$omp parallel private(thread_id, j, i, random_chooses, synth_data, synth_pl, synth_ks, thread_gen_1, thread_gen_2, synth_head_size)
     !> This clones the variables in each thread
     !$ thread_id = omp_get_thread_num() !> Gets the thread ID used in OpenMP
-    call thread_gen_1%init( base_seed + thread_id * 1999  ) !> Initializes each generator by a seed deppending on the thread_id
-    call thread_gen_2%init( base_seed + thread_id * 3999 + 104729  ) !> Initializes each generator by a seed deppending on the thread_id
+    call thread_gen_1%init( base_seed + thread_id ) !> Initializes each generator by a seed deppending on the thread_id
+    !call thread_gen_2%init( 2*base_seed + thread_id * 3999 + 104729  ) !> Initializes each generator by a seed deppending on the thread_id
     allocate( random_chooses(N) , synth_data(N) )
 
     !$omp do reduction(+:hits) !> This creates privates hits variables and safelly summation the result
@@ -305,7 +308,7 @@ subroutine p_value_test( this , N_samples , p_value )
         !> 1. Generating random noise 
         do i=1,N
             random_chooses(i) = thread_gen_1%rnd()  !> Random N-arr    
-            synth_data(i) = thread_gen_2%rnd() !> Random N-arr
+            synth_data(i) = thread_gen_1%rnd() !> Random N-arr
             if ( random_chooses(i) > p_tail ) synth_head_size = synth_head_size + 1
         enddo
         !> 2. Apply inverse transform for the tail
