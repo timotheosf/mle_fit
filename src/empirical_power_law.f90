@@ -83,7 +83,7 @@ subroutine find_best_parameters_with_cost_functional( this , r_data , xmin , alp
     lambda_passed = 0.15_dp
     if (present(lambda_in)) lambda_passed = lambda_in
     call this%core_fit( r_data=r_data , xmin=xmin , alpha=alpha , std_alpha=std_alpha , ks=ks , lambda_in=lambda_passed , use_weight=use_weight )
-end subroutine find_best_parameters
+end subroutine find_best_parameters_with_cost_functional
 
 subroutine find_greed_parameters_at_all_cost( this , r_data , greed_xmin , greed_alpha , greed_std_alpha , greed_ks , use_weight )
     class(empirical_pl) , intent(inout) :: this
@@ -309,7 +309,7 @@ subroutine internal_engine_to_find_best_parameters( this , r_data , xmin , alpha
     ! End clock benchmark
     call this%internal_clock%stop()
     this%mle_time = this%internal_clock%elapsed
-end subroutine
+end subroutine internal_engine_to_find_best_parameters
 
 subroutine null_hypothesis_test( this , N_samples , track_penalities , p_value )
     !$ use omp_lib    !> Includes parallel processing
