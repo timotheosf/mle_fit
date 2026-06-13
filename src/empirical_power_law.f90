@@ -258,8 +258,10 @@ subroutine p_value_test( this , N_samples , track_penalities , p_value )
         !> Each synthetic data is fitted independented
         if (present(track_penalities)) then
             if (track_penalities) call synth_pl%fast_fit( synth_data , ks=synth_ks , lambda_in=this%lambda_used , use_weight=this%weighted_adjust , synth_data_treat_as_discrete=this%data%data_is_discrete )
-        endif
+        else
             call synth_pl%fast_fit( synth_data , ks=synth_ks , synth_data_treat_as_discrete=this%data%data_is_discrete )
+        endif
+            
         if ( real_ks <= synth_ks ) hits = hits + 1
     enddo sampling_loop
     !$omp end do
