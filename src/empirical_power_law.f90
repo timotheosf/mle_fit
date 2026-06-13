@@ -134,7 +134,7 @@ subroutine find_greed_parameters_at_all_cost( this , r_data , greed_xmin , greed
             endif
         endif
     enddo find_greed_parameteres
-
+    call this%p_value( N_samples=2500 )
 end subroutine find_greed_parameters_at_all_cost
 
 
