@@ -1,5 +1,5 @@
 module pl_mod
-  use kinds_mod
+  use mle_kinds_mod
   use rndgen_mod
   !use mle_fit_mod
   implicit none
