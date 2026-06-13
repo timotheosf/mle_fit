@@ -281,7 +281,7 @@ subroutine print_report( this )
     print '(A)', "         --Empirical PL Fitted--         "
     print '(A)', " ----------------------------------------"
     if (this%data%data_is_discrete) then
-        print '("  ", A18, " = ", F12.4)', "x_min", int(this%x_min)
+        print '("  ", A18, " = ", I12)', "x_min", int(this%x_min)
     else
         print '("  ", A18, " = ", F12.4)', "x_min", this%x_min
     endif
