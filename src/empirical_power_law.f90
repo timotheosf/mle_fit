@@ -157,7 +157,7 @@ subroutine find_best_parameters( this , r_data , xmin , alpha , std_alpha , ks ,
             ks_minus_arr( 1:n_tail_int ) = current_cdf( 1:n_tail_int ) - ((seq( 1:n_tail_int ) - 1.0_dp) / N_tail)
         endif
         !> The current stats is update by this functional
-        current_ks = max( maxval(ks_minus_arr( 1:n_tail_int )), maxval(ks_plus_arr( 1:n_tail_int )) ) - lambda*((N_tail/real(N)))
+        current_ks = max( maxval(ks_minus_arr( 1:n_tail_int )), maxval(ks_plus_arr( 1:n_tail_int )) ) - lambda*((N_tail/real(N))**2)
         if ( current_ks <= ks_statistics ) then
             tail_len = n_tail_int           !> Update the tail_len
             mle_alpha = candidate_alpha     !> Update alpha value
@@ -176,7 +176,7 @@ subroutine find_best_parameters( this , r_data , xmin , alpha , std_alpha , ks ,
     !> Update the empirical PL
     call this%update_internals( mle_xmin , mle_alpha )
     this%stats = ks_statistics ; this%n_tail = tail_len ; this%std_alpha = candidate_std_alpha           
-    this%weighted_adjust = apply_weight ; this%lambda_used = lambda ; this%ks = ks_statistics + lambda*((tail_len/real(N)))
+    this%weighted_adjust = apply_weight ; this%lambda_used = lambda ; this%ks = ks_statistics + lambda*((tail_len/real(N))**2)
     this%was_pvalued = .FALSE. ; this%was_fitted = .TRUE.
     !> In the case if one uses external variables
     if (present(xmin)) xmin = mle_xmin
