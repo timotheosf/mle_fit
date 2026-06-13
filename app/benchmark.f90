@@ -38,8 +38,7 @@ do samples = 1 , size(N)
         enddo
         !> Time control for fit 
         call clock_control%start()
-        call pl_1%init( r_data( i , : ) )
-        call pl_1%fast_fit( )
+        call pl_1%fast_fit( r_data( i , : ) )
         call clock_control%stop()
         time_fit = clock_control%elapsed
         call clock_control%start()
@@ -49,8 +48,7 @@ do samples = 1 , size(N)
         write( time_OPM_unit , * ) N(samples) , "pl_1" , time_fit , time_pvalued
         print*, N(samples) , "pl_1" , time_fit , time_pvalued
         call clock_control%start()
-        call pl_2%init( r_data( i , : ) )
-        call pl_2%fast_fit( )
+        call pl_2%fast_fit( r_data( i , : ) )
         call clock_control%stop()
         time_fit = clock_control%elapsed
         call clock_control%start()

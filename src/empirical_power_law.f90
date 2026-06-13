@@ -115,7 +115,7 @@ subroutine find_greed_parameters_at_all_cost( this , r_data , greed_xmin , greed
         if ( pLaw%goodness_of_fit >= 0.07_dp ) then
             call pLaw%p_value( N_samples=2500 ) !> Two factor filter pt. 2 -> p_value (error=0.1)
             if ( pLaw%goodness_of_fit >= 0.1_dp ) then !> pLaw is a powerlaw, in fact
-                if (present(greed_xmin)) greed_xmin = pLaw%xmin
+                if (present(greed_xmin)) greed_xmin = pLaw%x_min
                 if (present(greed_alpha)) greed_alpha = pLaw%alpha
                 if (present(greed_std_alpha)) greed_std_alpha = pLaw%std_alpha
                 if (present(greed_ks)) greed_ks = pLaw%ks
@@ -142,7 +142,7 @@ subroutine p_value_test( this , N_samples , p_value )
     class(empirical_pl) , intent(inout) :: this
     integer(i4) , intent(in) , optional :: N_samples
     real(dp) , intent(out) , optional :: p_value
-    call this%null_hypothesis_test( N_samples , p_value )
+    call this%null_hypothesis_test( N_samples , p_value=p_value )
 end subroutine p_value_test
 
 
@@ -217,7 +217,7 @@ subroutine internal_engine_to_find_best_parameters( this , r_data , xmin , alpha
     endif
     if (save_history) then
         non_zero_idx = 0
-        allocate( mle_x_min_arr(N) , mle_alpha_arr(N) , mle_std_alpha_arr(N) , mle_stats_arr(N) , mle_n_tail_arr(N) , mle_ks_arr(N) )
+        allocate( mle_x_min_arr(N) , mle_alpha_arr(N) , mle_std_alpha_arr(N) , mle_stats_arr(N) , mle_n_tail_arr(N) )
     endif
     !--- Main Loop ---!
     mle_main_loop: do i = 1 , N-1
@@ -254,32 +254,23 @@ subroutine internal_engine_to_find_best_parameters( this , r_data , xmin , alpha
             candidate_std_alpha = (candidate_alpha-1.0_dp)/sqrt( N_tail ) !> Update std alpha
             ks_statistics = current_ks  !> Update ks_stats
             if ( save_history ) then
-                non_zero_idx = non_zero_idx + 1
-                mle_x_min_arr(non_zero_idx) = mle_xmin
-                mle_alpha_arr(non_zero_idx) = mle_alpha
-                mle_std_alpha_arr(non_zero_idx) = candidate_std_alpha
-                mle_stats_arr(non_zero_idx) = current_ks
-            endif
+                if ( current_ks < prev_ks ) then
+                    is_decreasing = .TRUE.
+                else if ( current_ks > prev_ks .and. is_decreasing ) then
+                    non_zero_idx = non_zero_idx + 1
+                    mle_x_min_arr(non_zero_idx) = prev_xmin
+                    mle_alpha_arr(non_zero_idx) = prev_alpha
+                    mle_std_alpha_arr(non_zero_idx) = prev_std_alpha
+                    mle_stats_arr(non_zero_idx) = prev_ks
+                    mle_n_tail_arr(non_zero_idx) = prev_tail_len
+                    is_decreasing = .FALSE.
+                endif
+                prev_ks = current_ks
+                prev_xmin = candidate_xmin
+                prev_alpha = candidate_alpha
+                prev_std_alpha = (candidate_alpha-1.0_dp)/sqrt( N_tail )
+                prev_tail_len = n_tail_int
         endif
-
-        if ( history ) then
-            if ( current_ks < prev_ks ) then
-                is_decreasing = .TRUE.
-            else if ( current_ks > prev_ks .and. is_decreasing ) then
-                non_zero_idx = non_zero_idx + 1
-                mle_x_min_arr(non_zero_idx) = prev_xmin
-                mle_alpha_arr(non_zero_idx) = prev_alpha
-                mle_std_alpha_arr(non_zero_idx) = prev_std_alpha
-                mle_stats_arr(non_zero_idx) = prev_ks
-                mle_n_tail_arr(non_zero_idx) = prev_tail_len
-                is_decreasing = .FALSE. ! Reseta até começar a descer outro vale
-            endif
-            ! Atualiza a memória para o próximo ciclo
-            prev_ks = current_ks
-            prev_xmin = candidate_xmin
-            prev_alpha = candidate_alpha
-            prev_std_alpha = (candidate_alpha-1.0_dp)/sqrt( N_tail )
-            prev_tail_len = n_tail_int
         endif
     enddo mle_main_loop
     !> Update the empirical PL
@@ -371,12 +362,12 @@ subroutine null_hypothesis_test( this , N_samples , track_penalities , p_value )
         !> Each synthetic data is fitted independented
         if (present(track_penalities)) then
             if (track_penalities) then
-                call synth_pl%fast_fit( synth_data , ks=synth_ks , lambda_in=this%lambda_used , use_weight=this%weighted_adjust , synth_data_treat_as_discrete=this%data%data_is_discrete )
+                call synth_pl%core_fit( r_data=synth_data , ks=synth_ks , lambda_in=this%lambda_used , use_weight=this%weighted_adjust , synth_data_treat_as_discrete=this%data%data_is_discrete )
             else
-                call synth_pl%fast_fit( synth_data , ks=synth_ks , synth_data_treat_as_discrete=this%data%data_is_discrete )
+                call synth_pl%core_fit( r_data=synth_data , ks=synth_ks , use_weight=this%weighted_adjust , synth_data_treat_as_discrete=this%data%data_is_discrete )
             endif
         else
-            call synth_pl%fast_fit( synth_data , ks=synth_ks , synth_data_treat_as_discrete=this%data%data_is_discrete )
+            call synth_pl%core_fit( r_data=synth_data , ks=synth_ks , use_weight=this%weighted_adjust , synth_data_treat_as_discrete=this%data%data_is_discrete )
         endif
             
         if ( real_ks <= synth_ks ) hits = hits + 1
