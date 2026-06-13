@@ -270,20 +270,30 @@ end subroutine
 
 subroutine print_report( this )
     class(empirical_pl) , intent(in) :: this
+    logical :: openMP
     if (.not. this%was_fitted ) then
         error stop "Empirical Power-Law is not fitted"
     endif
-    print*, "============================"
-    print*, "  --Empirical PL Fitted--   "
-    print*, "   x_min=", this%x_min
-    print*, "   alpha=", this%alpha
-    print*, "   std_alpha=", this%std_alpha
-    if (this%was_pvalued) print*, "   p_value=", this%goodness_of_fit 
-    print*, "   Data length=", this%data%len
-    print*, "   Tail length=", this%n_tail
-    print*, "   time for fit (s)=", this%mle_time
-    if (this%was_pvalued) print*, "   time for p_value=", this%hypothesis_time
-    print*, "============================"
+    openMP = .FALSE.
+    !$ openMP = .TRUE.
+    print '(A)', " ========================================"
+    print '(A)', "         --Empirical PL Fitted--         "
+    print '(A)', " ----------------------------------------"
+    print '("  ", A18, " = ", F12.4)', "x_min", this%x_min
+    print '("  ", A18, " = ", F12.4)', "alpha", this%alpha
+    print '("  ", A18, " = ", F12.4)', "std_alpha", this%std_alpha
+    if (this%was_pvalued) print '("  ", A18, " = ", F12.4)', "p_value", this%goodness_of_fit 
+    print '("  ", A18, " = ", I12)',   "Data length", this%data%len
+    print '("  ", A18, " = ", I12)',   "Tail length", this%n_tail
+    print '("  ", A18, " = ", F12.5)', "time for fit (s)", this%mle_time
+    if (this%was_pvalued) then
+        print '("  ", A18, " = ", F12.5)', "time p_value (s)", this%hypothesis_time
+        if (openMP) then
+            print '(A)', " ----------------------------------------"
+            print '(A)', "  * Parallel execution (OpenMP enabled)  "
+        endif
+    endif
+    print '(A)', " ========================================"
 end subroutine
 
 end module empirical_pl_mod
