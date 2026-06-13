@@ -41,7 +41,7 @@ module empirical_pl_mod
 
         !> Private procedures
         procedure , private :: init => start_adjust_parameters
-        procedure , private :: core_fit => interal_engine_to_find_best_parameters
+        procedure , private :: core_fit => internal_engine_to_find_best_parameters
         procedure , private :: null_hypothesis_test
 
     end type
@@ -127,6 +127,9 @@ subroutine find_greed_parameters_at_all_cost( this , r_data , greed_xmin , greed
                 this%n_tail = pLaw%n_tail
                 this%was_pvalued = .TRUE.
 
+                call this%internal_clock%stop()
+                this%mle_time = this%internal_clock%elapsed
+
                 exit find_greed_parameteres
             endif
         endif
@@ -143,7 +146,7 @@ subroutine p_value_test( this , N_samples , p_value )
 end subroutine p_value_test
 
 
-subroutine interal_engine_to_find_best_parameters( this , r_data , xmin , alpha , std_alpha , ks , lambda_in , use_weight , synth_data_treat_as_discrete , track_history )
+subroutine internal_engine_to_find_best_parameters( this , r_data , xmin , alpha , std_alpha , ks , lambda_in , use_weight , synth_data_treat_as_discrete , track_history )
     !> This is a long subroutine for fitting power laws parameters in empirical data
     !   It uses a vectorized operation as a fast method to find the stats,
     !   and simplify the alpha_exponent calculation by a O(1) (effective O(N) complexity)
