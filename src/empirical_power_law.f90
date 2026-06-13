@@ -18,10 +18,11 @@ module empirical_pl_mod
         real(dp) :: hypothesis_time             !> Time costed for hypothesis testing
         real(dp) :: p_value_eps                 !> P-value error
 
-        real(dp) , allocatable :: x_min_arr( : )
-        real(dp) , allocatable :: alpha_arr( : )
-        real(dp) , allocatable :: std_alpha_arr( : )
-        real(dp) , allocatable :: stats_arr( : )
+        real(dp) , allocatable , private :: x_min_arr( : )
+        real(dp) , allocatable , private :: alpha_arr( : )
+        real(dp) , allocatable , private :: std_alpha_arr( : )
+        real(dp) , allocatable , private :: stats_arr( : )
+        integer(i4) , allocatable , private :: n_tail_arr( : )
 
         !> Private variables
         logical , private  :: weighted_adjust   !> Flag to save the weighted used in the adjust
@@ -32,10 +33,16 @@ module empirical_pl_mod
 
     contains
 
-        procedure :: init => start_adjust_parameters
-        procedure :: fast_fit => find_best_parameters
+        procedure :: fast_fit => fast_find_best_parameters
+        procedure :: lamb_fit => find_best_parameters_with_cost_functional
+        procedure :: greed_fit => find_greed_parameters_at_all_cost
         procedure :: p_value => p_value_test
         procedure :: report => print_report
+
+        !> Private procedures
+        procedure , private :: init => start_adjust_parameters
+        procedure , private :: core_fit => interal_engine_to_find_best_parameters
+        procedure , private :: null_hypothesis_test
 
     end type
 
@@ -58,7 +65,85 @@ subroutine start_adjust_parameters( this , r_data , pre_ordering )
     this%was_pvalued = .FALSE. ; this%was_fitted = .FALSE.
 end subroutine
 
-subroutine find_best_parameters( this , r_data , xmin , alpha , std_alpha , ks , lambda_in , use_weight , synth_data_treat_as_discrete , track_history )
+subroutine fast_find_best_parameters( this , r_data , xmin , alpha , std_alpha , ks , use_weight )
+    class(empirical_pl) , intent(inout) :: this
+    class(*) , intent(in) , optional :: r_data(:)
+    logical  , intent(in) , optional :: use_weight
+    real(dp) , intent(out) , optional :: alpha , xmin , ks , std_alpha
+    call this%core_fit( r_data=r_data , xmin=xmin , alpha=alpha , std_alpha=std_alpha , ks=ks , use_weight=use_weight )
+end subroutine fast_find_best_parameters
+
+subroutine find_best_parameters_with_cost_functional( this , r_data , xmin , alpha , std_alpha , ks , lambda_in , use_weight )
+    class(empirical_pl) , intent(inout) :: this
+    class(*) , intent(in) , optional :: r_data(:)
+    logical  , intent(in) , optional :: use_weight
+    real(dp) , intent(in) , optional :: lambda_in
+    real(dp) , intent(out) , optional :: alpha , xmin , ks , std_alpha
+    real(dp) :: lambda_passed
+    lambda_passed = 0.15_dp
+    if (present(lambda_in)) lambda_passed = lambda_in
+    call this%core_fit( r_data=r_data , xmin=xmin , alpha=alpha , std_alpha=std_alpha , ks=ks , lambda_in=lambda_passed , use_weight=use_weight )
+end subroutine find_best_parameters
+
+subroutine find_greed_parameters_at_all_cost( this , r_data , greed_xmin , greed_alpha , greed_std_alpha , greed_ks , use_weight )
+    class(empirical_pl) , intent(inout) :: this
+    class(*) , intent(in) , optional :: r_data(:)
+    logical  , intent(in) , optional :: use_weight
+    real(dp) , intent(out) , optional :: greed_xmin , greed_alpha , greed_std_alpha , greed_ks
+    type(empirical_pl) :: pLaw
+    real(dp) :: alpha , xmin , ks , std_alpha
+    integer(i4) :: idx
+
+    call this%core_fit( r_data=r_data , track_history=.TRUE. , use_weight=use_weight , xmin=greed_xmin , alpha=greed_alpha , std_alpha=greed_std_alpha , ks=greed_ks )
+    
+    if (size( this%x_min_arr )==1) return
+    
+    pLaw%data = this%data
+    pLaw%was_pvalued = .FALSE. 
+    pLaw%was_fitted = .TRUE.
+    pLaw%weighted_adjust = this%weighted_adjust 
+    pLaw%lambda_used = 0.0_dp
+    find_greed_parameteres: do idx = 1 , size( this%x_min_arr )
+
+        call pLaw%update_internals( this%x_min_arr(idx) , this%alpha_arr(idx) )
+        pLaw%stats = this%stats_arr(idx) 
+        pLaw%std_alpha = this%std_alpha_arr(idx)
+        pLaw%n_tail = this%n_tail_arr(idx)
+        
+        !> Two factor filter pt. 1 -> fast p_value (error=0.3)
+        call pLaw%p_value( N_samples=100 )
+        if ( pLaw%goodness_of_fit >= 0.07_dp ) then
+            call pLaw%p_value( N_samples=2500 ) !> Two factor filter pt. 2 -> p_value (error=0.1)
+            if ( pLaw%goodness_of_fit >= 0.1_dp ) then !> pLaw is a powerlaw, in fact
+                if (present(greed_xmin)) greed_xmin = pLaw%xmin
+                if (present(greed_alpha)) greed_alpha = pLaw%alpha
+                if (present(greed_std_alpha)) greed_std_alpha = pLaw%std_alpha
+                if (present(greed_ks)) greed_ks = pLaw%ks
+                
+                call this%update_internals( pLaw%x_min , pLaw%alpha )
+                this%std_alpha = pLaw%std_alpha
+                this%stats = pLaw%stats
+                this%goodness_of_fit = pLaw%goodness_of_fit
+                this%n_tail = pLaw%n_tail
+                this%was_pvalued = .TRUE.
+
+                exit find_greed_parameteres
+            endif
+        endif
+    enddo find_greed_parameteres
+
+end subroutine find_greed_parameters_at_all_cost
+
+
+subroutine p_value_test( this , N_samples , p_value )
+    class(empirical_pl) , intent(inout) :: this
+    integer(i4) , intent(in) , optional :: N_samples
+    real(dp) , intent(out) , optional :: p_value
+    call this%null_hypothesis_test( N_samples , p_value )
+end subroutine p_value_test
+
+
+subroutine interal_engine_to_find_best_parameters( this , r_data , xmin , alpha , std_alpha , ks , lambda_in , use_weight , synth_data_treat_as_discrete , track_history )
     !> This is a long subroutine for fitting power laws parameters in empirical data
     !   It uses a vectorized operation as a fast method to find the stats,
     !   and simplify the alpha_exponent calculation by a O(1) (effective O(N) complexity)
@@ -69,11 +154,12 @@ subroutine find_best_parameters( this , r_data , xmin , alpha , std_alpha , ks ,
     real(dp) , intent(out) , optional :: alpha , xmin , ks , std_alpha
     real(dp) , parameter :: eps = epsilon(1.0_dp)
     real(dp) , allocatable :: mle_x_min_arr( : ) , mle_alpha_arr( : ) , mle_std_alpha_arr( : ) , mle_stats_arr( : )
+    integer(i4) , allocatable :: mle_n_tail_arr( : )
     real(dp) , allocatable :: sum_log_x(:) , ks_plus_arr(:) , ks_minus_arr(:) , current_cdf(:) , seq(:) , w(:) , log_x(:)
-    real(dp) :: log_xmin, alpha_minus_1
+    real(dp) :: log_xmin, alpha_minus_1 , prev_ks, prev_xmin, prev_alpha, prev_std_alpha
     real(dp) :: ks_statistics , current_ks, candidate_xmin , candidate_alpha, log_sum , N_tail , candidate_std_alpha , offset , lambda , mle_xmin , mle_alpha
-    integer(i4) :: i , N , n_tail_int , tail_len , non_zero_idx
-    logical  :: apply_weight , save_history
+    integer(i4) :: i , N , n_tail_int , tail_len , non_zero_idx , prev_tail_len
+    logical  :: apply_weight , save_history , is_decreasing
     !--- Initializing ---!
     ! 0. Start clock benchmark
     call this%internal_clock%start()
@@ -128,7 +214,7 @@ subroutine find_best_parameters( this , r_data , xmin , alpha , std_alpha , ks ,
     endif
     if (save_history) then
         non_zero_idx = 0
-        allocate( mle_x_min_arr(N) , mle_alpha_arr(N) , mle_std_alpha_arr(N) , mle_stats_arr(N) )
+        allocate( mle_x_min_arr(N) , mle_alpha_arr(N) , mle_std_alpha_arr(N) , mle_stats_arr(N) , mle_n_tail_arr(N) , mle_ks_arr(N) )
     endif
     !--- Main Loop ---!
     mle_main_loop: do i = 1 , N-1
@@ -172,6 +258,26 @@ subroutine find_best_parameters( this , r_data , xmin , alpha , std_alpha , ks ,
                 mle_stats_arr(non_zero_idx) = current_ks
             endif
         endif
+
+        if ( history ) then
+            if ( current_ks < prev_ks ) then
+                is_decreasing = .TRUE.
+            else if ( current_ks > prev_ks .and. is_decreasing ) then
+                non_zero_idx = non_zero_idx + 1
+                mle_x_min_arr(non_zero_idx) = prev_xmin
+                mle_alpha_arr(non_zero_idx) = prev_alpha
+                mle_std_alpha_arr(non_zero_idx) = prev_std_alpha
+                mle_stats_arr(non_zero_idx) = prev_ks
+                mle_n_tail_arr(non_zero_idx) = prev_tail_len
+                is_decreasing = .FALSE. ! Reseta até começar a descer outro vale
+            endif
+            ! Atualiza a memória para o próximo ciclo
+            prev_ks = current_ks
+            prev_xmin = candidate_xmin
+            prev_alpha = candidate_alpha
+            prev_std_alpha = (candidate_alpha-1.0_dp)/sqrt( N_tail )
+            prev_tail_len = n_tail_int
+        endif
     enddo mle_main_loop
     !> Update the empirical PL
     call this%update_internals( mle_xmin , mle_alpha )
@@ -186,12 +292,13 @@ subroutine find_best_parameters( this , r_data , xmin , alpha , std_alpha , ks ,
     !> If one wants to track history
     if (save_history) then
         if (allocated(this%x_min_arr)) deallocate(this%x_min_arr, this%alpha_arr, this%std_alpha_arr, this%stats_arr)
-        allocate( this%x_min_arr(non_zero_idx) , this%alpha_arr(non_zero_idx) , this%std_alpha_arr(non_zero_idx) , this%stats_arr(non_zero_idx) )
+        allocate( this%x_min_arr(non_zero_idx) , this%alpha_arr(non_zero_idx) , this%std_alpha_arr(non_zero_idx) , this%stats_arr(non_zero_idx) , this%n_tail_arr(non_zero_idx) )
         this%x_min_arr(1:non_zero_idx) = mle_x_min_arr( 1:non_zero_idx )
         this%alpha_arr(1:non_zero_idx) = mle_alpha_arr( 1:non_zero_idx )
         this%std_alpha_arr(1:non_zero_idx) = mle_std_alpha_arr( 1:non_zero_idx )
         this%stats_arr(1:non_zero_idx) = mle_stats_arr( 1:non_zero_idx )
-        deallocate( mle_x_min_arr , mle_alpha_arr , mle_std_alpha_arr , mle_stats_arr )
+        this%n_tail_arr(1:non_zero_idx) = mle_n_tail_arr(1:non_zero_idx)
+        deallocate( mle_x_min_arr , mle_alpha_arr , mle_std_alpha_arr , mle_stats_arr , mle_n_tail_arr )
     endif
     !> Deallocate all the internal arrays
     deallocate( sum_log_x, ks_plus_arr, ks_minus_arr, current_cdf, seq , log_x )
@@ -201,7 +308,7 @@ subroutine find_best_parameters( this , r_data , xmin , alpha , std_alpha , ks ,
     this%mle_time = this%internal_clock%elapsed
 end subroutine
 
-subroutine p_value_test( this , N_samples , track_penalities , p_value )
+subroutine null_hypothesis_test( this , N_samples , track_penalities , p_value )
     !$ use omp_lib    !> Includes parallel processing
     class(empirical_pl) , intent(inout) :: this
     integer(i4) , intent(in) , optional :: N_samples !> Number of samples is optional; standard = 1000
