@@ -13,6 +13,8 @@ module empirical_pl_mod
         real(dp) :: stats                       !> Kolmogorov-Smirnov/Anderson-Dalirng Statistics
         integer(i4) :: n_tail                   !> Empirical distribuiton tail length 
         real(dp) :: goodness_of_fit             !> P-value
+        real(dp) :: mle_time , hypothesis_time
+        type(clock_time) :: internal_clock
 
         real(dp) , allocatable :: x_min_arr( : )
         real(dp) , allocatable :: alpha_arr( : )
@@ -70,6 +72,8 @@ subroutine find_best_parameters( this , r_data , xmin , alpha , std_alpha , ks ,
     integer(i4) :: i , N , n_tail_int , tail_len , non_zero_idx
     logical  :: apply_weight , save_history
     !--- Initializing ---!
+    ! 0. Start clock benchmark
+    call this%internal_clock%start()
     ! 1. Receive and sort the generic data
     if (present(r_data)) then
         call this%init( r_data )
@@ -189,6 +193,9 @@ subroutine find_best_parameters( this , r_data , xmin , alpha , std_alpha , ks ,
     !> Deallocate all the internal arrays
     deallocate( sum_log_x, ks_plus_arr, ks_minus_arr, current_cdf, seq , log_x )
     if (apply_weight) deallocate(w)
+    ! End clock benchmark
+    call this%internal_clock%stop()
+    this%mle_time = this%internal_clock%elapsed
 end subroutine
 
 subroutine p_value_test( this , N_samples , p_value )
@@ -203,6 +210,8 @@ subroutine p_value_test( this , N_samples , p_value )
     integer(i4) :: thread_id  , max_noise_idx , synth_head_size
     real(dp) , allocatable :: random_chooses( : ) , synth_data( : )
     !--- Initializing ---!
+    ! 0. Start time benchmark
+    call this%internal_clock%start()
     ! 1. Samples used
     if (present(N_samples)) then
         N_trials = N_samples
@@ -254,6 +263,9 @@ subroutine p_value_test( this , N_samples , p_value )
     if (present(p_value)) p_value = real(hits,dp)/real(N_trials,dp)
     this%goodness_of_fit = real(hits,dp)/real(N_trials,dp) !> Saves the p_value in the internal variable
     this%was_pvalued = .TRUE.
+    ! End clock benchmark
+    call this%internal_clock%stop()
+    this%hypothesis_time = this%internal_clock%elapsed
 end subroutine
 
 subroutine print_report( this )
@@ -267,6 +279,10 @@ subroutine print_report( this )
     print*, "   alpha=", this%alpha
     print*, "   std_alpha=", this%std_alpha
     if (this%was_pvalued) print*, "   p_value=", this%goodness_of_fit 
+    print*, "   Data length=", this%data%N
+    print*, "   Tail length=", this%n_tail
+    print*, "   time for fit (s)=", this%mle_time
+    if (this%was_pvalued) print*, "   time for p_value=", this%hypothesis_time
     print*, "============================"
 end subroutine
 
