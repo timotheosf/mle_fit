@@ -10,7 +10,8 @@ module empirical_pl_mod
         type(random_data) :: data
 
         real(dp) :: std_alpha                   !> Standard deviation of alpha
-        real(dp) :: stats                       !> Kolmogorov-Smirnov/Anderson-Dalirng Statistics
+        real(dp) :: stats                       !> Used statistics
+        real(dp) :: ks                          !> Kolmogorov-Smirnov
         integer(i4) :: n_tail                   !> Empirical distribuiton tail length 
         real(dp) :: goodness_of_fit             !> P-value
         real(dp) :: mle_time                    !> Time costed for fitting
@@ -175,7 +176,7 @@ subroutine find_best_parameters( this , r_data , xmin , alpha , std_alpha , ks ,
     !> Update the empirical PL
     call this%update_internals( mle_xmin , mle_alpha )
     this%stats = ks_statistics ; this%n_tail = tail_len ; this%std_alpha = candidate_std_alpha           
-    this%weighted_adjust = apply_weight ; this%lambda_used = lambda
+    this%weighted_adjust = apply_weight ; this%lambda_used = lambda ; this%ks = ks_statistics + lambda*((tail_len/real(N))**2)
     this%was_pvalued = .FALSE. ; this%was_fitted = .TRUE.
     !> In the case if one uses external variables
     if (present(xmin)) xmin = mle_xmin
@@ -221,8 +222,10 @@ subroutine p_value_test( this , N_samples , track_penalities , p_value )
     else
         N_trials = 1000
     endif
-
-    real_ks = this%stats 
+    real_ks = this%ks
+    if (present(track_penalities)) then
+        if (track_penalities) real_ks = this%stats
+    endif
     N = this%data%len
     p_tail = real(this%n_tail,dp)/real(N ,dp)
     hits = 0
@@ -257,7 +260,11 @@ subroutine p_value_test( this , N_samples , track_penalities , p_value )
         
         !> Each synthetic data is fitted independented
         if (present(track_penalities)) then
-            if (track_penalities) call synth_pl%fast_fit( synth_data , ks=synth_ks , lambda_in=this%lambda_used , use_weight=this%weighted_adjust , synth_data_treat_as_discrete=this%data%data_is_discrete )
+            if (track_penalities) then
+                call synth_pl%fast_fit( synth_data , ks=synth_ks , lambda_in=this%lambda_used , use_weight=this%weighted_adjust , synth_data_treat_as_discrete=this%data%data_is_discrete )
+            else
+                call synth_pl%fast_fit( synth_data , ks=synth_ks , synth_data_treat_as_discrete=this%data%data_is_discrete )
+            endif
         else
             call synth_pl%fast_fit( synth_data , ks=synth_ks , synth_data_treat_as_discrete=this%data%data_is_discrete )
         endif
