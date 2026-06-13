@@ -102,7 +102,7 @@ subroutine find_best_parameters( this , r_data , xmin , alpha , std_alpha , ks ,
     if (present(use_weight)) then
         apply_weight = use_weight
     else
-        apply_weight = .TRUE. 
+        apply_weight = .FALSE. 
     endif
     if (apply_weight) then
         allocate(w(N))
@@ -200,10 +200,11 @@ subroutine find_best_parameters( this , r_data , xmin , alpha , std_alpha , ks ,
     this%mle_time = this%internal_clock%elapsed
 end subroutine
 
-subroutine p_value_test( this , N_samples , p_value )
+subroutine p_value_test( this , N_samples , track_penalities , p_value )
     !$ use omp_lib    !> Includes parallel processing
     class(empirical_pl) , intent(inout) :: this
     integer(i4) , intent(in) , optional :: N_samples !> Number of samples is optional; standard = 1000
+    logical , intent(in) , optional :: track_penalities
     real(dp) , intent(out) , optional :: p_value
     type(empirical_pl) :: synth_pl  !> PL fitted in the synthetic data
     type(rndgen) :: thread_gen_1 , thread_gen_2      !> Thread independent random number generator for OpenMP
@@ -255,7 +256,10 @@ subroutine p_value_test( this , N_samples , p_value )
         synth_data( 1:synth_head_size ) = this%data%arr( floor(real((max_noise_idx),dp)*synth_data( 1:synth_head_size ),kind=i4) + 1 )
         
         !> Each synthetic data is fitted independented
-        call synth_pl%fast_fit( synth_data , ks=synth_ks , lambda_in=this%lambda_used , use_weight=this%weighted_adjust , synth_data_treat_as_discrete=this%data%data_is_discrete )
+        if (present(track_penalities)) then
+            if (track_penalities) call synth_pl%fast_fit( synth_data , ks=synth_ks , lambda_in=this%lambda_used , use_weight=this%weighted_adjust , synth_data_treat_as_discrete=this%data%data_is_discrete )
+        endif
+            call synth_pl%fast_fit( synth_data , ks=synth_ks , synth_data_treat_as_discrete=this%data%data_is_discrete )
         if ( real_ks <= synth_ks ) hits = hits + 1
     enddo sampling_loop
     !$omp end do

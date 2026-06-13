@@ -18,7 +18,6 @@ implicit-external = false
 source-form = "free"
 
 [dependencies]
-openmp="*"
 stdlib = "*"
 rndgen-fortran.git = "https://github.com/wcota/rndgen-fortran"
 
