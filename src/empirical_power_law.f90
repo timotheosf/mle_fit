@@ -276,10 +276,15 @@ subroutine print_report( this )
     endif
     openMP = .FALSE.
     !$ openMP = .TRUE.
+    print*, ""
     print '(A)', " ========================================"
     print '(A)', "         --Empirical PL Fitted--         "
     print '(A)', " ----------------------------------------"
-    print '("  ", A18, " = ", F12.4)', "x_min", this%x_min
+    if (this%data_is_discrete) then
+        print '("  ", A18, " = ", F12.4)', "x_min", int(this%x_min)
+    else
+        print '("  ", A18, " = ", F12.4)', "x_min", this%x_min
+    endif
     print '("  ", A18, " = ", F12.4)', "alpha", this%alpha
     print '("  ", A18, " = ", F12.4)', "std_alpha", this%std_alpha
     if (this%was_pvalued) print '("  ", A18, " = ", F12.4)', "p_value", this%goodness_of_fit 
@@ -294,6 +299,7 @@ subroutine print_report( this )
         endif
     endif
     print '(A)', " ========================================"
+    print*, ""
 end subroutine
 
 end module empirical_pl_mod
