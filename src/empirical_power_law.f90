@@ -13,8 +13,9 @@ module empirical_pl_mod
         real(dp) :: stats                       !> Kolmogorov-Smirnov/Anderson-Dalirng Statistics
         integer(i4) :: n_tail                   !> Empirical distribuiton tail length 
         real(dp) :: goodness_of_fit             !> P-value
-        real(dp) :: mle_time , hypothesis_time
-        type(clock_time) :: internal_clock
+        real(dp) :: mle_time                    !> Time costed for fitting
+        real(dp) :: hypothesis_time             !> Time costed for hypothesis testing
+        real(dp) :: p_value_eps                 !> P-value error
 
         real(dp) , allocatable :: x_min_arr( : )
         real(dp) , allocatable :: alpha_arr( : )
@@ -26,6 +27,7 @@ module empirical_pl_mod
         logical , private  :: was_fitted        !> Control flag: was this fitted?
         logical , private  :: was_pvalued       !> Control flag: was this p_valued?
         real(dp) , private :: lambda_used       !> Internal variable
+        type(clock_time) , private :: internal_clock !> Internal clock for benchmark
 
     contains
 
@@ -262,6 +264,7 @@ subroutine p_value_test( this , N_samples , p_value )
     !> Returns the p-value
     if (present(p_value)) p_value = real(hits,dp)/real(N_trials,dp)
     this%goodness_of_fit = real(hits,dp)/real(N_trials,dp) !> Saves the p_value in the internal variable
+    this%p_value_eps = 1.0_dp / (2.0_dp * sqrt(real(N_trials, dp))) !> Saves the p_value precision in the internal variable
     this%was_pvalued = .TRUE.
     ! End clock benchmark
     call this%internal_clock%stop()
@@ -288,6 +291,7 @@ subroutine print_report( this )
     print '("  ", A18, " = ", F12.4)', "alpha", this%alpha
     print '("  ", A18, " = ", F12.4)', "std_alpha", this%std_alpha
     if (this%was_pvalued) print '("  ", A18, " = ", F12.4)', "p_value", this%goodness_of_fit 
+    if (this%was_pvalued) print '("  ", A18, " = ", F12.4)', "p_value error", this%p_value_eps
     print '("  ", A18, " = ", I12)',   "Data length", this%data%len
     print '("  ", A18, " = ", I12)',   "Tail length", this%n_tail
     print '("  ", A18, " = ", F12.5)', "time for fit (s)", this%mle_time
