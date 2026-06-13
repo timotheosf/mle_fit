@@ -279,7 +279,7 @@ subroutine print_report( this )
     print*, "   alpha=", this%alpha
     print*, "   std_alpha=", this%std_alpha
     if (this%was_pvalued) print*, "   p_value=", this%goodness_of_fit 
-    print*, "   Data length=", this%data%N
+    print*, "   Data length=", this%data%len
     print*, "   Tail length=", this%n_tail
     print*, "   time for fit (s)=", this%mle_time
     if (this%was_pvalued) print*, "   time for p_value=", this%hypothesis_time
