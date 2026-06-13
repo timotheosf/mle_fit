@@ -285,7 +285,7 @@ subroutine internal_engine_to_find_best_parameters( this , r_data , xmin , alpha
     if (present(std_alpha)) std_alpha = candidate_std_alpha
     !> If one wants to track history
     if (save_history) then
-        if (allocated(this%x_min_arr)) deallocate(this%x_min_arr, this%alpha_arr, this%std_alpha_arr, this%stats_arr)
+        if (allocated(this%x_min_arr)) deallocate( this%x_min_arr , this%alpha_arr , this%std_alpha_arr , this%stats_arr , this%n_tail_arr )
         allocate( this%x_min_arr(non_zero_idx) , this%alpha_arr(non_zero_idx) , this%std_alpha_arr(non_zero_idx) , this%stats_arr(non_zero_idx) , this%n_tail_arr(non_zero_idx) )
         this%x_min_arr(1:non_zero_idx) = mle_x_min_arr( 1:non_zero_idx )
         this%alpha_arr(1:non_zero_idx) = mle_alpha_arr( 1:non_zero_idx )
