@@ -1,4 +1,4 @@
-module kinds_mod
+module mle_kinds_mod
     use, intrinsic :: iso_fortran_env, only: &
         sp => real32, & ! single precision, range: -3.40282347E+38 to 3.40282347E+38, smallest positive: 1.17549435E-38
         dp => real64, & ! double precision, range: -1.7976931348623157E+308 to 1.7976931348623157E+308, smallest positive: 2.2250738585072014E-308
@@ -169,4 +169,4 @@ function elapsed_time( this ) result( elapsed_seconds )
     elapsed_seconds = real( this%time_at_stop - this%time_at_start , dp ) / this%time_rate
 end function
 
-end module kinds_mod    
+end module mle_kinds_mod    

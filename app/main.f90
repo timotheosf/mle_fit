@@ -1,5 +1,5 @@
 program main
-  use kinds_mod
+  use mle_kinds_mod
   use rndgen_mod
   implicit none
   type(rndgen) :: generator

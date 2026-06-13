@@ -1,5 +1,5 @@
 module empirical_pl_mod
-    use kinds_mod
+    use mle_kinds_mod
     use pl_mod
     use rndgen_mod
     implicit none

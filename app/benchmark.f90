@@ -1,5 +1,5 @@
 program benchmark
-use kinds_mod
+use mle_kinds_mod
 use rndgen_mod
 use empirical_pl_mod
 implicit none
