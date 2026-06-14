@@ -258,7 +258,7 @@ subroutine internal_engine_to_find_best_parameters( this , r_data , xmin , alpha
             if ( save_history ) then
                 if ( current_ks < prev_ks ) then
                     is_decreasing = .TRUE.
-                else if ( current_ks > prev_ks .and. is_decreasing ) then
+                else if ( current_ks >= prev_ks .and. is_decreasing ) then
                     non_zero_idx = non_zero_idx + 1
                     mle_x_min_arr(non_zero_idx) = prev_xmin
                     mle_alpha_arr(non_zero_idx) = prev_alpha
