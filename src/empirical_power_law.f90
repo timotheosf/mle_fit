@@ -158,6 +158,7 @@ subroutine internal_engine_to_find_best_parameters( this , r_data , xmin , alpha
     real(dp) , intent(in) , optional :: lambda_in
     real(dp) , intent(out) , optional :: alpha , xmin , ks , std_alpha
     real(dp) , parameter :: eps = epsilon(1.0_dp)
+    real(dp) :: bin_tolerance
     real(dp) , allocatable :: mle_x_min_arr( : ) , mle_alpha_arr( : ) , mle_std_alpha_arr( : ) , mle_stats_arr( : )
     integer(i4) , allocatable :: mle_n_tail_arr( : )
     real(dp) , allocatable :: sum_log_x(:) , ks_plus_arr(:) , ks_minus_arr(:) , current_cdf(:) , seq(:) , w(:) , log_x(:)
@@ -178,8 +179,10 @@ subroutine internal_engine_to_find_best_parameters( this , r_data , xmin , alpha
     ! 2. Defines the offset based in the data original type
     if (this%data%data_is_discrete) then
         offset = 0.5_dp
+        bin_tolerance = 0.5_dp
     else
         offset = 0.0_dp
+        bin_tolerance = (this%data%arr(N)-this%data%arr(1))/N
     endif
     if (present(synth_data_treat_as_discrete)) then
         if (synth_data_treat_as_discrete) offset = 0.5_dp
@@ -224,7 +227,7 @@ subroutine internal_engine_to_find_best_parameters( this , r_data , xmin , alpha
     !--- Main Loop ---!
     mle_main_loop: do i = 1 , N-1
         if ( i > 1 ) then !> Avoid repeated x_min candidates
-            if ( abs(candidate_xmin - this%data%arr(i)) < eps ) cycle mle_main_loop
+            if ( abs(candidate_xmin - this%data%arr(i)) < bin_tolerance ) cycle mle_main_loop
         endif
         !> New candidates values and tail length
         candidate_xmin = this%data%arr(i)
