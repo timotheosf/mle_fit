@@ -41,6 +41,8 @@ module mle_kinds_mod
         procedure :: total => elapsed_time
     endtype
 
+public :: clock_time , random_data , zeta_function
+
 contains
 
 subroutine receive_data( this , r_data )
@@ -180,5 +182,32 @@ function elapsed_time( this ) result( elapsed_seconds )
     real(dp) :: elapsed_seconds
     elapsed_seconds = real( this%time_at_stop - this%time_at_start , dp ) / this%time_rate
 end function
+
+elemental function zeta_function(s, a) result(res)
+        !> Computes the Hurwitz Zeta_function function \zeta_function(s, a) = \sum_{k=0}^\infty (k+a)^{-s}
+        !> Using the Euler-Maclaurin summation formula for high precision and speed.
+        real(dp), intent(in) :: s, a
+        real(dp) :: res, term, sum_val, a_plus_N, s_minus_1
+        integer(i4) :: k
+        integer(i4), parameter :: N_terms = 15 !> Number of direct terms before asymptotic expansion
+
+        ! 1. Direct summation of the first N_terms
+        sum_val = 0.0_dp
+        do k = 0, N_terms - 1
+            sum_val = sum_val + 1.0_dp / ((a + real(k, dp))**s)
+        end do
+
+        a_plus_N = a + real(N_terms, dp)
+        s_minus_1 = s - 1.0_dp
+
+        ! 2. Euler-Maclaurin Asymptotic Expansion for the remainder
+        term = (a_plus_N**(-s_minus_1)) / s_minus_1 &
+             + 0.5_dp * (a_plus_N**(-s)) &
+             + (s / 12.0_dp) * (a_plus_N**(-s - 1.0_dp)) &
+             - (s * (s + 1.0_dp) * (s + 2.0_dp) / 720.0_dp) * (a_plus_N**(-s - 3.0_dp)) &
+             + (s * (s + 1.0_dp) * (s + 2.0_dp) * (s + 3.0_dp) * (s + 4.0_dp) / 30240.0_dp) * (a_plus_N**(-s - 5.0_dp))
+
+        res = sum_val + term
+end function zeta_function
 
 end module mle_kinds_mod    

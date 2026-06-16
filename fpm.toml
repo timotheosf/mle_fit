@@ -20,8 +20,3 @@ source-form = "free"
 [dependencies]
 stdlib = "*"
 rndgen-fortran.git = "https://github.com/wcota/rndgen-fortran"
-
-[[executable]]
-name = "benchmark"
-source-dir = "app"
-main = "benchmark.f90"

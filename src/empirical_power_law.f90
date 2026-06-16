@@ -249,9 +249,14 @@ subroutine internal_engine_to_find_best_parameters( this , r_data , xmin , alpha
         candidate_alpha = 1.0_dp + N_tail/log_sum
          
         !> Fully vectorized O(N_tail) calculation of ks_stats
-        log_xmin = log(candidate_xmin)
-        alpha_minus_1 = candidate_alpha - 1.0_dp
-        current_cdf( 1:n_tail_int ) = 1.0_dp - exp( alpha_minus_1 * (log_xmin - log_x(i:N)) ) !> Optimized form for CDF evaluation
+        if ( this%data%data_is_discrete ) then
+            current_cdf( 1:n_tail_int ) = 1.0_dp - &
+                    zeta_function(candidate_alpha,this%data%arr(i:N))/zeta_function(candidate_alpha,candidate_xmin)
+        else
+            log_xmin = log(candidate_xmin)
+            alpha_minus_1 = candidate_alpha - 1.0_dp
+            current_cdf( 1:n_tail_int ) = 1.0_dp - exp( alpha_minus_1 * (log_xmin - log_x(i:N)) ) !> Optimized form for CDF evaluation
+        endif
         if ( apply_weight ) then
             w( 1:n_tail_int ) = 1._dp/sqrt( (current_cdf(1:n_tail_int)*(1._dp-current_cdf(1:n_tail_int))+eps) ) !> Anderson-Darling weight
             ks_plus_arr( 1:n_tail_int ) = ((seq( 1:n_tail_int ) / N_tail) - current_cdf( 1:n_tail_int ))*w( 1:n_tail_int )
