@@ -123,25 +123,37 @@ subroutine receive_data_from_file( this , file_unit , skip_title )
 end subroutine
     
 
-subroutine sorting_random_data( this , pre_ordering , reverse )
+subroutine sorting_random_data( this , pre_ordering , reverse , work_buffer )
     !> This subroutines plays the role of an interface to ordering the data
     class(random_data) , intent(inout) :: this
     logical, intent(in), optional :: pre_ordering, reverse
     logical :: is_arr_pre_ordering, ordering_in_reverse
+    real(dp), intent(inout), optional :: work_buffer(:)
 
     !> Set default values for optional arguments
     is_arr_pre_ordering = .FALSE.
     if (present(pre_ordering)) is_arr_pre_ordering = pre_ordering
     ordering_in_reverse = .FALSE.
     if (present(reverse)) ordering_in_reverse = reverse
+    if (present(work_buffer)) then
+        if (size(work_buffer)/=size(this%arr)) error stop "Sorting random data: Passed work buffer has to be the same size data array"
+    endif
 
     !> Check if the array is allocated
     if (.not. allocated(this%arr)) return
 
-    if (is_arr_pre_ordering) then
-        call ord_sort( this%arr , reverse=ordering_in_reverse)
+        if (is_arr_pre_ordering) then
+        if (present(work_buffer)) then
+            call ord_sort( this%arr , work=work_buffer, reverse=ordering_in_reverse)
+        else
+            call ord_sort( this%arr , reverse=ordering_in_reverse)
+        endif
     else
-        call radix_sort( this%arr , reverse=ordering_in_reverse)
+        if (present(work_buffer)) then
+            call radix_sort( this%arr , work=work_buffer, reverse=ordering_in_reverse)
+        else
+            call radix_sort( this%arr , reverse=ordering_in_reverse)
+        endif
     endif
     
     this%sorted_data = .TRUE.

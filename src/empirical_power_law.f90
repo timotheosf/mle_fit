@@ -30,6 +30,7 @@ module empirical_pl_mod
         logical , private  :: was_pvalued       !> Control flag: was this p_valued?
         real(dp) , private :: lambda_used       !> Internal variable
         type(clock_time) , private :: internal_clock !> Internal clock for benchmark
+        real(dp) , allocatable , private :: wrk_sort_buffer(:)
 
     contains
 
@@ -57,12 +58,22 @@ subroutine start_adjust_parameters( this , r_data , pre_ordering )
     !> Receive generic data
     call this%data%receive_data( r_data )
     !> Sort data
-    if (present(pre_ordering)) then
-        call this%data%sort_data( pre_ordering )
+    if (allocated(this%wrk_sort_buffer)) then
+        if (present(pre_ordering)) then
+            call this%data%sort_data( pre_ordering, work_buffer=this%wrk_sort_buffer )
+        else
+            call this%data%sort_data( work_buffer=this%wrk_sort_buffer )
+        endif
     else
-        call this%data%sort_data( )
+        if (present(pre_ordering)) then
+            call this%data%sort_data( pre_ordering )
+        else
+            call this%data%sort_data( )
+        endif
     endif
-    this%was_pvalued = .FALSE. ; this%was_fitted = .FALSE.
+    !> Initial flags
+    this%was_pvalued = .FALSE.
+    this%was_fitted = .FALSE.
 end subroutine
 
 subroutine fast_find_best_parameters( this , r_data , xmin , alpha , std_alpha , ks , use_weight )
@@ -346,7 +357,7 @@ subroutine null_hypothesis_test( this , N_samples , track_penalities , p_value )
     !$ thread_id = omp_get_thread_num() !> Gets the thread ID used in OpenMP
     call thread_gen_1%init( base_seed + thread_id * 1999  ) !> Initializes each generator by a seed deppending on the thread_id
     call thread_gen_2%init( base_seed + thread_id * 3999 + 104729  ) !> Initializes each generator by a seed deppending on the thread_id
-    allocate( random_chooses(N) , synth_data(N) )
+    allocate( random_chooses(N) , synth_data(N) , synth_pl%wrk_sort_buffer(N) )
 
     !$omp do reduction(+:hits) !> This creates privates hits variables and safelly summation the result
     !--- Main loop ---!
