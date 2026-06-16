@@ -102,7 +102,6 @@ subroutine find_greed_parameters_at_all_cost( this , r_data , greed_xmin , greed
     logical  , intent(in) , optional :: use_weight
     real(dp) , intent(out) , optional :: greed_xmin , greed_alpha , greed_std_alpha , greed_ks
     type(empirical_pl) :: pLaw
-    real(dp) :: alpha , xmin , ks , std_alpha
     integer(i4) :: idx
 
     call this%core_fit( r_data=r_data , track_history=.TRUE. , use_weight=use_weight , xmin=greed_xmin , alpha=greed_alpha , std_alpha=greed_std_alpha , ks=greed_ks )
@@ -326,7 +325,7 @@ subroutine null_hypothesis_test( this , N_samples , track_penalities , p_value )
     real(dp) , intent(out) , optional :: p_value
     type(empirical_pl) :: synth_pl  !> PL fitted in the synthetic data
     type(rndgen) :: thread_gen_1 , thread_gen_2      !> Thread independent random number generator for OpenMP
-    real(dp) :: ks , p_tail , synth_ks , real_ks , lambda
+    real(dp) :: p_tail , synth_ks , real_ks
     integer(i4) :: i , N_trials , N , time_values(8) , hits , j , base_seed
     integer(i4) :: thread_id  , max_noise_idx , synth_head_size
     real(dp) , allocatable :: random_chooses( : ) , synth_data( : )
