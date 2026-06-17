@@ -270,6 +270,10 @@ subroutine internal_engine_to_find_best_parameters( this , r_data , xmin , alpha
         !> O(1) calculation of alpha
         log_sum = sum_log_x(i) - N_tail*log( candidate_xmin-offset )
         candidate_alpha = 1.0_dp + N_tail/log_sum
+
+        if ( (candidate_alpha - 1.0_dp) / sqrt( N_tail ) >= 0.1_dp ) then !> Python powerlaw package schizoid flag
+            exit mle_main_loop
+        endif
          
         !> Fully vectorized O(N_tail) calculation of ks_stats
         if ( this%data%data_is_discrete ) then
