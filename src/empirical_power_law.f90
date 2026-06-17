@@ -289,8 +289,8 @@ subroutine internal_engine_to_find_best_parameters( this , r_data , xmin , alpha
             ks_plus_arr( 1:n_tail_int ) = ((seq( 1:n_tail_int ) / N_tail) - current_cdf( 1:n_tail_int ))*w( 1:n_tail_int )
             ks_minus_arr( 1:n_tail_int ) = (current_cdf( 1:n_tail_int ) - ((seq( 1:n_tail_int ) - 1.0_dp) / N_tail))*w( 1:n_tail_int )
         else
-            ks_plus_arr( 1:n_tail_int ) = ((last_idx(i:N) - real(i, dp) + 1.0_dp) / N_tail) - current_cdf( 1:n_tail_int )
-            ks_minus_arr( 1:n_tail_int ) = current_cdf( 1:n_tail_int ) - (max(0.0_dp, first_idx(i:N) - real(i, dp)) / N_tail)
+            ks_plus_arr( 1:n_tail_int ) = sqrt(N_tail)*(((last_idx(i:N) - real(i, dp) + 1.0_dp) / N_tail) - current_cdf( 1:n_tail_int ) )
+            ks_minus_arr( 1:n_tail_int ) = sqrt(N_tail)*(current_cdf( 1:n_tail_int ) - (max(0.0_dp, first_idx(i:N) - real(i, dp)) / N_tail) )
             
         endif
         !> The current stats is update by this functional
