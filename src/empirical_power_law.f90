@@ -291,7 +291,7 @@ subroutine internal_engine_to_find_best_parameters( this , r_data , xmin , alpha
         endif
         !> The current stats is update by this functional
         current_ks = max( maxval(ks_minus_arr( 1:n_tail_int )), maxval(ks_plus_arr( 1:n_tail_int )) ) - lambda*((N_tail/real(N)))
-        if ( current_ks <= ks_statistics ) then
+        if ( current_ks < ks_statistics ) then
             tail_len = n_tail_int           !> Update the tail_len
             mle_alpha = candidate_alpha     !> Update alpha value
             mle_xmin = candidate_xmin       !> Update x_min
