@@ -91,8 +91,8 @@ subroutine pl_evaluate_tail(this, i, N, x_min_candidate, r_data, cdf_out, theta_
     real(dp), intent(out) :: theta_out(:)
     real(dp), intent(out) :: std_theta_out(:)
 
-    integer(i4) :: n_tail_int , j
-    real(dp) :: N_tail, log_sum, candidate_alpha, log_xmin, alpha_minus_1 , zeta_denom
+    integer(i4) :: n_tail_int , j , k_int
+    real(dp) :: N_tail, log_sum, candidate_alpha, log_xmin, alpha_minus_1 , zeta_denom , last_x, last_cdf, gap
 
     n_tail_int = N - i + 1
     N_tail = real(n_tail_int, dp)
@@ -105,19 +105,34 @@ subroutine pl_evaluate_tail(this, i, N, x_min_candidate, r_data, cdf_out, theta_
 
     !> Full vectorized cdf calulation 
     if (r_data%data_is_discrete) then
-        
         zeta_denom = zeta_function(candidate_alpha, x_min_candidate)
-        cdf_out(1) = 1.0_dp - zeta_function(candidate_alpha, r_data%arr(i)) / zeta_denom
+        
+        last_x = r_data%arr(i)
+        
+        last_cdf = (last_x**(-candidate_alpha)) / zeta_denom
+        cdf_out(1) = last_cdf
+        
         do j = 2, n_tail_int
-            if (r_data%arr(i+j-1) == r_data%arr(i+j-2)) then
-                cdf_out(j) = cdf_out(j-1)
+            current_x = r_data%arr(i+j-1)
+            
+            if (current_x == last_x) then
+                cdf_out(j) = last_cdf
             else
-                cdf_out(j) = 1.0_dp - zeta_function(candidate_alpha, r_data%arr(i+j-1)) / zeta_denom
+                gap = current_x - last_x
+                if (gap < 20.0_dp) then
+                    do k_int = int(last_x)+1, int(current_x)
+                        last_cdf = last_cdf + (real(k_int, dp)**(-candidate_alpha)) / zeta_denom
+                    end do
+                else
+                    last_cdf = 1.0_dp - zeta_function(candidate_alpha, current_x + 1.0_dp) / zeta_denom
+                endif
+                
+                cdf_out(j) = last_cdf
+                last_x = current_x
             endif
         enddo
-        !cdf_out(1:n_tail_int) = 1.0_dp - &
-        !    zeta_function(candidate_alpha, r_data%arr(i:N)) / zeta_function(candidate_alpha, x_min_candidate)
     else
+
         log_xmin = log(x_min_candidate)
         alpha_minus_1 = candidate_alpha - 1.0_dp
         cdf_out(1:n_tail_int) = 1.0_dp - exp(alpha_minus_1 * (log_xmin - this%log_x(i:N)))
