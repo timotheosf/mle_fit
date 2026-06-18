@@ -91,7 +91,7 @@ subroutine pl_evaluate_tail(this, i, N, x_min_candidate, r_data, cdf_out, theta_
     real(dp), intent(out) :: theta_out(:)
     real(dp), intent(out) :: std_theta_out(:)
 
-    integer(i4) :: n_tail_int
+    integer(i4) :: n_tail_int , j
     real(dp) :: N_tail, log_sum, candidate_alpha, log_xmin, alpha_minus_1 , zeta_denom
 
     n_tail_int = N - i + 1
