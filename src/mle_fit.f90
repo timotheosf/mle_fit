@@ -130,8 +130,8 @@ subroutine internal_core_fit( this, r_data, xmin, theta, std_theta, ks, lambda_i
     
     !> Working variables
     real(dp) :: prev_ks, prev_xmin, ks_statistics, current_ks, candidate_xmin
-    real(dp) :: N_tail, lambda
-    integer(i4) :: i, N, n_tail_int, tail_len, non_zero_idx, prev_tail_len, n_p , x_min_pos
+    real(dp) :: N_tail, lambda , empirical_ccdf, theoretical_ccdf, diff, w_val
+    integer(i4) :: i, N, n_tail_int, tail_len, non_zero_idx, prev_tail_len, n_p , x_min_pos , j
     logical  :: apply_weight, save_history, is_decreasing
 
     !> Dynamic parameter arrays
@@ -228,6 +228,23 @@ subroutine internal_core_fit( this, r_data, xmin, theta, std_theta, ks, lambda_i
                                       cand_theta, cand_std )
 
         !> Calculate KS Statistics
+        if (this%data%data_is_discrete) then
+            current_ks = 0.0_dp
+            do j = 1, n_tail_int
+                if (j == 1 .or. this%data%arr(i+j-1) /= this%data%arr(i+j-2)) then
+                    empirical_ccdf = real(n_tail_int - j + 1, dp) / N_tail
+                    theoretical_ccdf = 1.0_dp - current_cdf(j)
+                    diff = abs(empirical_ccdf - theoretical_ccdf)
+                    if (apply_weight) then
+                        w_val = 1.0_dp / sqrt(theoretical_ccdf * (1.0_dp - theoretical_ccdf) + eps)
+                        diff = diff * w_val
+                    endif
+                    
+                    if (diff > current_ks) current_ks = diff
+                endif
+            enddo
+            current_ks = current_ks - lambda*((N_tail/real(N)))                                      
+        else
         if ( apply_weight ) then
             !> Anderson-Darling weight
             w( 1:n_tail_int ) = 1._dp/sqrt( (current_cdf(1:n_tail_int)*(1._dp-current_cdf(1:n_tail_int))+eps) ) 
@@ -236,6 +253,7 @@ subroutine internal_core_fit( this, r_data, xmin, theta, std_theta, ks, lambda_i
         else
             ks_plus_arr( 1:n_tail_int ) = (seq( 1:n_tail_int ) / N_tail) - current_cdf( 1:n_tail_int )
             ks_minus_arr( 1:n_tail_int ) = current_cdf( 1:n_tail_int ) - ((seq( 1:n_tail_int ) - 1.0_dp) / N_tail)
+        endif
         endif
 
         !> The current stats is updated by this functional
