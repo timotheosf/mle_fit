@@ -52,14 +52,15 @@ public ::  mle
 
 contains
 
-subroutine fast_find_best_parameters( this, r_data, distribuiton, xmin, theta, std_theta, ks, use_weight )
+subroutine fast_find_best_parameters( this, r_data, distribuiton, xmin, theta, std_theta, ks, use_weight , fixed_xmin )
     class(mle), intent(inout) :: this
     class(empirical_distribution), intent(inout) :: distribuiton
     class(*), intent(in), optional :: r_data(:)
     logical , intent(in), optional :: use_weight
     real(dp), intent(out), optional :: theta(:), xmin, ks, std_theta(:)
+    real(dp), intent(in), optional :: fixed_xmin
     call this%bind_dist( distribuiton )
-    call this%core_fit( r_data=r_data, xmin=xmin, theta=theta, std_theta=std_theta, ks=ks, use_weight=use_weight )
+    call this%core_fit( r_data=r_data, xmin=xmin, theta=theta, std_theta=std_theta, ks=ks, use_weight=use_weight , x_min_in=fixed_xmin )
 end subroutine fast_find_best_parameters
 
 subroutine lambda_find_best_parameters( this, r_data, distribuiton, xmin, theta, std_theta, ks, use_weight, lambda_in )
@@ -108,11 +109,11 @@ subroutine start_adjust_parameters( this, r_data, pre_ordering )
     this%was_fitted = .FALSE.
 end subroutine
 
-subroutine internal_core_fit( this, r_data, xmin, theta, std_theta, ks, lambda_in, use_weight, track_history )
+subroutine internal_core_fit( this, r_data, xmin, theta, std_theta, ks, lambda_in, use_weight, track_history , x_min_in )
     class(mle), intent(inout) :: this
     class(*), intent(in), optional :: r_data(:)
     logical , intent(in), optional :: use_weight, track_history
-    real(dp), intent(in), optional :: lambda_in
+    real(dp), intent(in), optional :: lambda_in , x_min_in
     real(dp), intent(out), optional :: xmin, ks 
     real(dp), intent(out), optional :: theta(:), std_theta(:)
 
@@ -130,7 +131,7 @@ subroutine internal_core_fit( this, r_data, xmin, theta, std_theta, ks, lambda_i
     !> Working variables
     real(dp) :: prev_ks, prev_xmin, ks_statistics, current_ks, candidate_xmin
     real(dp) :: N_tail, lambda
-    integer(i4) :: i, N, n_tail_int, tail_len, non_zero_idx, prev_tail_len, n_p
+    integer(i4) :: i, N, n_tail_int, tail_len, non_zero_idx, prev_tail_len, n_p , x_min_pos
     logical  :: apply_weight, save_history, is_decreasing
 
     !> Dynamic parameter arrays
@@ -205,6 +206,46 @@ subroutine internal_core_fit( this, r_data, xmin, theta, std_theta, ks, lambda_i
     !> Call the pre-computation routine of the specific distribution
     call this%dist%pre_compute( this%data )
 
+    present_xmin_IF: if (present(x_min_in)) then
+        candidate_xmin = x_min_in
+        x_min_pos = 0
+        find_x_min_pos_loop: do i = 1, N-1
+        if ( abs(candidate_xmin - this%data%arr(i)) < bin_tolerance ) then
+            x_min_pos = i
+            exit find_x_min_pos_loop
+        else
+            cycle find_x_min_pos_loop
+        endif
+        enddo find_x_min_pos_loop
+        if ( x_min_pos == 0 ) error stop "Error: passed x_min not found in data"
+        i = x_min_pos
+        n_tail_int = N - i + 1            
+        N_tail = real(n_tail_int, dp)     
+
+        !> DELEGATE TO DISTRIBUTION: Evaluate current tail and get parameters + CDF
+        call this%dist%evaluate_tail( i, N, candidate_xmin, this%data, &
+                                      current_cdf(1:n_tail_int),       &
+                                      cand_theta, cand_std )
+
+        !> Calculate KS Statistics
+        if ( apply_weight ) then
+            !> Anderson-Darling weight
+            w( 1:n_tail_int ) = 1._dp/sqrt( (current_cdf(1:n_tail_int)*(1._dp-current_cdf(1:n_tail_int))+eps) ) 
+            ks_plus_arr( 1:n_tail_int ) = ((seq( 1:n_tail_int ) / N_tail) - current_cdf( 1:n_tail_int ))*w( 1:n_tail_int )
+            ks_minus_arr( 1:n_tail_int ) = (current_cdf( 1:n_tail_int ) - ((seq( 1:n_tail_int ) - 1.0_dp) / N_tail))*w( 1:n_tail_int )
+        else
+            ks_plus_arr( 1:n_tail_int ) = (seq( 1:n_tail_int ) / N_tail) - current_cdf( 1:n_tail_int )
+            ks_minus_arr( 1:n_tail_int ) = current_cdf( 1:n_tail_int ) - ((seq( 1:n_tail_int ) - 1.0_dp) / N_tail)
+        endif
+
+        !> The current stats is updated by this functional
+        current_ks = max( maxval(ks_minus_arr( 1:n_tail_int )), maxval(ks_plus_arr( 1:n_tail_int )) ) - lambda*((N_tail/real(N)))
+        tail_len = n_tail_int           
+        best_xmin = candidate_xmin      
+        best_theta = cand_theta
+        best_std = cand_std
+        ks_statistics = current_ks
+    else
     !--- Main Loop ---!
     mle_main_loop: do i = 1, N-1
         if ( i > 1 ) then 
@@ -262,6 +303,7 @@ subroutine internal_core_fit( this, r_data, xmin, theta, std_theta, ks, lambda_i
             endif
         endif
     enddo mle_main_loop
+    endif present_xmin_IF
 
     !> Inject best parameters into the distribution
     call this%dist%save_params( best_xmin, (ks_statistics + lambda*(tail_len/real(N))), tail_len, best_theta, best_std )
