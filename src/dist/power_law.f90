@@ -92,7 +92,7 @@ subroutine pl_evaluate_tail(this, i, N, x_min_candidate, r_data, cdf_out, theta_
     real(dp), intent(out) :: std_theta_out(:)
 
     integer(i4) :: n_tail_int
-    real(dp) :: N_tail, log_sum, candidate_alpha, log_xmin, alpha_minus_1
+    real(dp) :: N_tail, log_sum, candidate_alpha, log_xmin, alpha_minus_1 , zeta_denom
 
     n_tail_int = N - i + 1
     N_tail = real(n_tail_int, dp)
@@ -105,8 +105,18 @@ subroutine pl_evaluate_tail(this, i, N, x_min_candidate, r_data, cdf_out, theta_
 
     !> Full vectorized cdf calulation 
     if (r_data%data_is_discrete) then
-        cdf_out(1:n_tail_int) = 1.0_dp - &
-            zeta_function(candidate_alpha, r_data%arr(i:N)) / zeta_function(candidate_alpha, x_min_candidate)
+        
+        zeta_denom = zeta_function(candidate_alpha, x_min_candidate)
+        cdf_out(1) = 1.0_dp - zeta_function(candidate_alpha, r_data%arr(i)) / zeta_denom
+        do j = 2, n_tail_int
+            if (r_data%arr(i+j-1) == r_data%arr(i+j-2)) then
+                cdf_out(j) = cdf_out(j-1)
+            else
+                cdf_out(j) = 1.0_dp - zeta_function(candidate_alpha, r_data%arr(i+j-1)) / zeta_denom
+            endif
+        enddo
+        !cdf_out(1:n_tail_int) = 1.0_dp - &
+        !    zeta_function(candidate_alpha, r_data%arr(i:N)) / zeta_function(candidate_alpha, x_min_candidate)
     else
         log_xmin = log(x_min_candidate)
         alpha_minus_1 = candidate_alpha - 1.0_dp
