@@ -36,9 +36,10 @@ module mle_kinds_mod
         real(dp) :: time_rate
     
     contains
-        procedure :: start => start_time_count
-        procedure ::  stop =>  stop_time_count
-        procedure :: total => elapsed_time
+        procedure :: get_now => get_system_time
+        procedure :: start   => start_time_count
+        procedure ::  stop   =>  stop_time_count
+        procedure :: total   => elapsed_time
     endtype
 
 public :: clock_time , random_data , zeta_function
@@ -182,6 +183,12 @@ function elapsed_time( this ) result( elapsed_seconds )
     real(dp) :: elapsed_seconds
     elapsed_seconds = real( this%time_at_stop - this%time_at_start , dp ) / this%time_rate
 end function
+
+function get_system_time( this ) result( now_time )
+    class(clock_time) , intent(inout) :: this
+    integer(i4) :: now_time
+    call system_clock(count=now_time)
+end function get_system_time
 
 elemental function zeta_function(s, a) result(res)
         !> Computes the Hurwitz Zeta_function function \zeta_function(s, a) = \sum_{k=0}^\infty (k+a)^{-s}
