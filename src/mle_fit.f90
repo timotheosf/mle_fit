@@ -20,19 +20,19 @@ public ::  mle
         real(dp) :: p_value_eps                 !> P-value error
 
         !> Private control variables
-        logical , private  :: weighted_adjust                   !> Flag to save the weighted used in the adjust
-        logical , private  :: was_fitted                        !> Control flag: was this fitted?
-        logical , private  :: was_pvalued                       !> Control flag: was this p_valued?
-        real(dp) , private :: lambda_used                       !> Lambda used in lamb_fit method
-        type(clock_time) , private :: internal_clock            !> Internal clock for benchmark
-        real(dp) , allocatable , private :: wrk_sort_buffer(:)  !> Internal buffer for optimize radix_sort in p_value subroutine
+        logical, private  :: weighted_adjust                   !> Flag to save the weighted used in the adjust
+        logical, private  :: was_fitted                        !> Control flag: was this fitted?
+        logical, private  :: was_pvalued                       !> Control flag: was this p_valued?
+        real(dp), private :: lambda_used                       !> Lambda used in lamb_fit method
+        type(clock_time), private :: internal_clock            !> Internal clock for benchmark
+        real(dp), allocatable, private :: wrk_sort_buffer(:)   !> Internal buffer for optimize radix_sort in p_value subroutine
 
         !> Needed internal variables for greed searching
-        real(dp) , allocatable , private :: x_min_arr( : )
-        real(dp) , allocatable , private :: theta_arr( : , : )
-        real(dp) , allocatable , private :: std_theta_arr( : , : )
-        real(dp) , allocatable , private :: stats_arr( : )
-        integer(i4) , allocatable , private :: n_tail_arr( : )
+        real(dp), allocatable, private :: x_min_arr( : )
+        real(dp), allocatable, private :: theta_arr( :, : )
+        real(dp), allocatable, private :: std_theta_arr( :, : )
+        real(dp), allocatable, private :: stats_arr( : )
+        integer(i4), allocatable, private :: n_tail_arr( : )
 
     contains
 
@@ -44,6 +44,7 @@ public ::  mle
 
         !> Public
         procedure :: fast_fit => fast_find_best_parameters
+        procedure :: lamb_fit => lambda_find_best_parameters
         procedure :: report => print_report
         procedure :: p_value => null_hypothesis_test 
     
@@ -51,26 +52,40 @@ public ::  mle
 
 contains
 
-subroutine fast_find_best_parameters( this , r_data , distribuiton , xmin , theta , std_theta , ks , use_weight )
-    class(mle) , intent(inout) :: this
+subroutine fast_find_best_parameters( this, r_data, distribuiton, xmin, theta, std_theta, ks, use_weight )
+    class(mle), intent(inout) :: this
     class(empirical_distribution), intent(inout) :: distribuiton
-    class(*) , intent(in) , optional :: r_data(:)
-    logical  , intent(in) , optional :: use_weight
-    real(dp) , intent(out) , optional :: theta , xmin , ks , std_theta
+    class(*), intent(in), optional :: r_data(:)
+    logical , intent(in), optional :: use_weight
+    real(dp), intent(out), optional :: theta(:), xmin, ks, std_theta(:)
     call this%bind_dist( distribuiton )
-    call this%core_fit( r_data=r_data , xmin=xmin , theta=theta , std_theta=std_theta , ks=ks , use_weight=use_weight )
+    call this%core_fit( r_data=r_data, xmin=xmin, theta=theta, std_theta=std_theta, ks=ks, use_weight=use_weight )
 end subroutine fast_find_best_parameters
 
-subroutine bind_dist( this , distribuiton )
+subroutine lambda_find_best_parameters( this, r_data, distribuiton, xmin, theta, std_theta, ks, use_weight, lambda_in )
+    class(mle), intent(inout) :: this
+    class(empirical_distribution), intent(inout) :: distribuiton
+    class(*), intent(in), optional :: r_data(:)
+    logical , intent(in), optional :: use_weight
+    real(dp), intent(out), optional :: theta(:), xmin, ks, std_theta(:)
+    real(dp), intent(in), optional :: lambda_in
+    real(dp) :: lambda
+    lambda = 0.15_dp
+    if (present(lambda_in)) lambda=lambda_in
+    call this%bind_dist( distribuiton )
+    call this%core_fit( r_data=r_data, xmin=xmin, theta=theta, std_theta=std_theta, ks=ks, use_weight=use_weight, lambda_in=lambda )
+end subroutine lambda_find_best_parameters
+
+subroutine bind_dist( this, distribuiton )
     class(mle), intent(inout) :: this
     class(empirical_distribution), intent(in) :: distribuiton
     if ( allocated(this%dist) ) deallocate( this%dist )
-    allocate( this%dist , source=distribuiton ) !> Dynamic binding the distribution
+    allocate( this%dist, source=distribuiton ) !> Dynamic binding the distribution
 end subroutine bind_dist
 
-subroutine start_adjust_parameters( this , r_data , pre_ordering )    
-    class(mle) , intent(inout) :: this
-    class(*) , intent(in) :: r_data(:)
+subroutine start_adjust_parameters( this, r_data, pre_ordering )    
+    class(mle), intent(inout) :: this
+    class(*), intent(in) :: r_data(:)
     logical, intent(in), optional :: pre_ordering
     !> Receive generic data
     call this%data%receive_data( r_data )
@@ -93,35 +108,36 @@ subroutine start_adjust_parameters( this , r_data , pre_ordering )
     this%was_fitted = .FALSE.
 end subroutine
 
-subroutine internal_core_fit( this , r_data , xmin , theta , std_theta , ks , lambda_in , use_weight , track_history )
-    class(mle) , intent(inout) :: this
-    class(*) , intent(in) , optional :: r_data(:)
-    logical  , intent(in) , optional :: use_weight , track_history
-    real(dp) , intent(in) , optional :: lambda_in
-    real(dp) , intent(out) , optional :: xmin , ks 
-    real(dp) , intent(out) , optional :: theta(:) , std_theta(:)
+subroutine internal_core_fit( this, r_data, xmin, theta, std_theta, ks, lambda_in, use_weight, track_history )
+    class(mle), intent(inout) :: this
+    class(*), intent(in), optional :: r_data(:)
+    logical , intent(in), optional :: use_weight, track_history
+    real(dp), intent(in), optional :: lambda_in
+    real(dp), intent(out), optional :: xmin, ks 
+    real(dp), intent(out), optional :: theta(:), std_theta(:)
 
-    real(dp) , parameter :: eps = epsilon(1.0_dp)
+    real(dp), parameter :: eps = epsilon(1.0_dp)
     real(dp) :: bin_tolerance
     
     !> History tracking arrays
-    real(dp) , allocatable :: mle_x_min_arr(:), mle_stats_arr(:)
-    real(dp) , allocatable :: mle_theta_arr(:,:), mle_std_theta_arr(:,:)
-    integer(i4) , allocatable :: mle_n_tail_arr(:)
+    real(dp), allocatable :: mle_x_min_arr(:), mle_stats_arr(:)
+    real(dp), allocatable :: mle_theta_arr(:,:), mle_std_theta_arr(:,:)
+    integer(i4), allocatable :: mle_n_tail_arr(:)
     
     !> Calculation arrays
-    real(dp) , allocatable :: ks_plus_arr(:) , ks_minus_arr(:) , current_cdf(:) , seq(:) , w(:)
+    real(dp), allocatable :: ks_plus_arr(:), ks_minus_arr(:), current_cdf(:), seq(:), w(:)
     
     !> Working variables
-    real(dp) :: prev_ks, prev_xmin, ks_statistics , current_ks, candidate_xmin
+    real(dp) :: prev_ks, prev_xmin, ks_statistics, current_ks, candidate_xmin
     real(dp) :: N_tail, lambda
-    integer(i4) :: i , N , n_tail_int , tail_len , non_zero_idx , prev_tail_len, n_p
-    logical  :: apply_weight , save_history , is_decreasing
+    integer(i4) :: i, N, n_tail_int, tail_len, non_zero_idx, prev_tail_len, n_p
+    logical  :: apply_weight, save_history, is_decreasing
 
     !> Dynamic parameter arrays
-    real(dp) , allocatable :: cand_theta(:), cand_std(:)
-    real(dp) , allocatable :: best_theta(:), best_std(:)
-    real(dp) , allocatable :: prev_theta(:), prev_std(:)
+    real(dp) :: best_xmin
+    real(dp), allocatable :: cand_theta(:), cand_std(:)
+    real(dp), allocatable :: best_theta(:), best_std(:)
+    real(dp), allocatable :: prev_theta(:), prev_std(:)
 
     !--- Initializing ---!
     call this%internal_clock%start()
@@ -167,7 +183,7 @@ subroutine internal_core_fit( this , r_data , xmin , theta , std_theta , ks , la
     !> Allocating common calculation variables
     allocate( ks_plus_arr(N), ks_minus_arr(N), seq(N), current_cdf(N) )
     seq(N) = real(N,dp)
-    do i = N-1 , 1 , -1
+    do i = N-1, 1, -1
         seq(i) = real(i,dp)
     enddo
     
@@ -190,7 +206,7 @@ subroutine internal_core_fit( this , r_data , xmin , theta , std_theta , ks , la
     call this%dist%pre_compute( this%data )
 
     !--- Main Loop ---!
-    mle_main_loop: do i = 1 , N-1
+    mle_main_loop: do i = 1, N-1
         if ( i > 1 ) then 
             !> Avoid repeated x_min candidates
             if ( abs(candidate_xmin - this%data%arr(i)) < bin_tolerance ) cycle mle_main_loop
@@ -265,8 +281,8 @@ subroutine internal_core_fit( this , r_data , xmin , theta , std_theta , ks , la
 
     !> Track history
     if (save_history) then
-        if (allocated(this%x_min_arr)) deallocate( this%x_min_arr , this%theta_arr , this%std_theta_arr , this%stats_arr , this%n_tail_arr )
-        allocate( this%x_min_arr(non_zero_idx) , this%stats_arr(non_zero_idx) , this%n_tail_arr(non_zero_idx) )
+        if (allocated(this%x_min_arr)) deallocate( this%x_min_arr, this%theta_arr, this%std_theta_arr, this%stats_arr, this%n_tail_arr )
+        allocate( this%x_min_arr(non_zero_idx), this%stats_arr(non_zero_idx), this%n_tail_arr(non_zero_idx) )
         allocate( this%theta_arr(n_p, non_zero_idx), this%std_theta_arr(n_p, non_zero_idx) )
         
         this%x_min_arr(1:non_zero_idx) = mle_x_min_arr( 1:non_zero_idx )
@@ -281,20 +297,20 @@ subroutine internal_core_fit( this , r_data , xmin , theta , std_theta , ks , la
 end subroutine internal_core_fit
 
 
-subroutine null_hypothesis_test( this , N_samples , track_penalities , p_value )
+subroutine null_hypothesis_test( this, N_samples, track_penalities, p_value )
     !$ use omp_lib
-    class(mle) , intent(inout) :: this
-    integer(i4) , intent(in) , optional :: N_samples 
-    logical , intent(in) , optional :: track_penalities
-    real(dp) , intent(out) , optional :: p_value
+    class(mle), intent(inout) :: this
+    integer(i4), intent(in), optional :: N_samples 
+    logical, intent(in), optional :: track_penalities
+    real(dp), intent(out), optional :: p_value
     
-    type(rndgen) :: thread_gen_1 , thread_gen_2      
-    real(dp) :: p_tail , synth_ks , real_ks
-    integer(i4) :: i , N_trials , N , time_values(8) , hits , j , base_seed
-    integer(i4) :: thread_id  , max_noise_idx , synth_head_size
+    type(rndgen) :: thread_gen_1, thread_gen_2      
+    real(dp) :: p_tail, synth_ks, real_ks
+    integer(i4) :: i, N_trials, N, time_values(8), hits, j, base_seed
+    integer(i4) :: thread_id , max_noise_idx, synth_head_size
     
     !> Thread specific arrays and instances
-    real(dp) , allocatable :: random_chooses( : ) , synth_data_arr( : )
+    real(dp), allocatable :: random_chooses( : ), synth_data_arr( : )
     type(mle) :: synth_mle
 
     !--- Initializing ---!
@@ -337,7 +353,7 @@ subroutine null_hypothesis_test( this , N_samples , track_penalities , p_value )
     allocate(synth_mle%wrk_sort_buffer(N)) 
 
     !$omp do reduction(+:hits) 
-    sampling_loop: do j = 1 , N_trials
+    sampling_loop: do j = 1, N_trials
         synth_head_size = 0
         
         !> Step 1: Bootstrap the empirical head
@@ -360,12 +376,12 @@ subroutine null_hypothesis_test( this , N_samples , track_penalities , p_value )
 
         if (present(track_penalities)) then
             if (track_penalities) then
-                call synth_mle%core_fit( ks=synth_ks , lambda_in=this%lambda_used , use_weight=this%weighted_adjust )
+                call synth_mle%core_fit( ks=synth_ks, lambda_in=this%lambda_used, use_weight=this%weighted_adjust )
             else
-                call synth_mle%core_fit( ks=synth_ks , use_weight=this%weighted_adjust )
+                call synth_mle%core_fit( ks=synth_ks, use_weight=this%weighted_adjust )
             endif
         else
-            call synth_mle%core_fit( ks=synth_ks , use_weight=this%weighted_adjust )
+            call synth_mle%core_fit( ks=synth_ks, use_weight=this%weighted_adjust )
         endif
             
         if ( real_ks <= synth_ks ) hits = hits + 1
@@ -393,55 +409,49 @@ subroutine print_report(this)
     class(mle), intent(in) :: this
     character(len=20), allocatable :: p_names(:)
     integer(i4) :: k
-    logical :: openMP_enabled
 
     if (.not. this%was_fitted) then
         print *, "Error: MLE model is not fitted yet."
         return
     end if
 
-    ! Detecção de compilação com OpenMP
-    openMP_enabled = .FALSE.
-    !$ openMP_enabled = .TRUE.
-
     print *, ""
     print '(A)', " ========================================"
     print '(A)', "         -- Empirical MLE Fitted --      "
     print '(A)', " ----------------------------------------"
 
-    ! Imprime o x_min de acordo com a natureza discreta/contínua dos dados originais
+    !> Converts x_min to int if the distribution is discrete
     if (this%data%data_is_discrete) then
         print '("  ", A18, " = ", I12)', "x_min", int(this%dist%x_min)
     else
         print '("  ", A18, " = ", F12.4)', "x_min", this%dist%x_min
     end if
 
-    ! Resgata os nomes dos parâmetros dinamicamente (da classe filha)
+    !> Get the parameters names of the distribution
     p_names = this%dist%get_param_names()
     
-    ! Loop para imprimir quantos parâmetros a distribuição tiver!
+    !> Print each param name and corresponding MLE value
     do k = 1, this%dist%num_params
         print '("  ", A18, " = ", F12.4)', trim(p_names(k)), this%dist%theta(k)
         print '("  ", A18, " = ", F12.4)', "std_"//trim(p_names(k)), this%dist%std_theta(k)
     end do
 
-    ! Estatísticas de bondade do ajuste
+    !> Print goodness of fit if the null hypothesis was tested
     if (this%was_pvalued) then
         print '("  ", A18, " = ", F12.4)', "p_value", this%goodness_of_fit 
         print '("  ", A18, " = ", F12.4)', "p_value error", this%p_value_eps
     end if
 
-    ! Informações gerais do dataset e tempos
+    !> Print benchmark informations
     print '("  ", A18, " = ", I12)',   "Data length", this%data%len
     print '("  ", A18, " = ", I12)',   "Tail length", this%dist%n_tail
     print '("  ", A18, " = ", F12.5)', "time for fit (s)", this%mle_time
 
     if (this%was_pvalued) then
         print '("  ", A18, " = ", F12.5)', "time p_value (s)", this%hypothesis_time
-        if (openMP_enabled) then
-            print '(A)', " ----------------------------------------"
-            print '(A)', "  * Parallel execution (OpenMP enabled)  "
-        end if
+    !> Print if OMP parallel execution was used in p_value test
+    !$        print '(A)', " ----------------------------------------"
+    !$        print '(A)', "  * Parallel execution (OpenMP enabled)  "
     end if
     
     print '(A)', " ========================================"

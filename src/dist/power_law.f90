@@ -57,7 +57,7 @@ subroutine wake_up_power_law(this, seed)
 end subroutine wake_up_power_law
 
 subroutine pl_pre_compute(this, r_data)
-    class(mle), intent(inout) :: this
+    class(power_law), intent(inout) :: this
     type(random_data), intent(in) :: r_data
     integer(i4) :: N, i
 
