@@ -92,7 +92,7 @@ subroutine pl_evaluate_tail(this, i, N, x_min_candidate, r_data, cdf_out, theta_
     real(dp), intent(out) :: std_theta_out(:)
 
     integer(i4) :: n_tail_int , j , k_int
-    real(dp) :: N_tail, log_sum, candidate_alpha, log_xmin, alpha_minus_1 , zeta_denom , last_x, last_cdf, gap
+    real(dp) :: N_tail, log_sum, candidate_alpha, log_xmin, alpha_minus_1 , zeta_denom , last_x, last_cdf, gap , current_x
 
     n_tail_int = N - i + 1
     N_tail = real(n_tail_int, dp)
