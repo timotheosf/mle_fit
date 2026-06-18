@@ -176,9 +176,8 @@ subroutine internal_engine_to_find_best_parameters( this , r_data , xmin , alpha
     real(dp) :: ks_statistics , current_ks, candidate_xmin , candidate_alpha, log_sum , N_tail , candidate_std_alpha , offset , lambda , mle_xmin , mle_alpha
     integer(i4) :: i , N , n_tail_int , tail_len , non_zero_idx , prev_tail_len
     logical  :: apply_weight , save_history , is_decreasing
-    real(dp) , allocatable :: first_idx(:), last_idx(:)
-    real(dp) :: S_right, S_left
     real(dp) , allocatable :: first_idx(:)
+    real(dp) :: S_right, S_left
     !--- Initializing ---!
     ! 0. Start clock benchmark
     call this%internal_clock%start()
@@ -226,27 +225,6 @@ subroutine internal_engine_to_find_best_parameters( this , r_data , xmin , alpha
         !> Determining the seq variable
         seq(i) = real(i,dp)
     enddo
-    allocate(first_idx(N), last_idx(N))
-
-! Preenche last_idx (indo de trás pra frente)
-    last_idx(N) = real(N, dp)
-    do i = N-1, 1, -1
-    if (this%data%arr(i) == this%data%arr(i+1)) then
-        last_idx(i) = last_idx(i+1)
-    else
-        last_idx(i) = real(i, dp)
-    end if
-    end do
-
-    ! Preenche first_idx (indo de frente pra trás)
-    first_idx(1) = 1.0_dp
-    do i = 2, N
-    if (this%data%arr(i) == this%data%arr(i-1)) then
-        first_idx(i) = first_idx(i-1)
-    else
-        first_idx(i) = real(i, dp)
-    end if
-    end do
 
     allocate(first_idx(N))
     first_idx(1) = 1.0_dp
@@ -283,9 +261,9 @@ subroutine internal_engine_to_find_best_parameters( this , r_data , xmin , alpha
         log_sum = sum_log_x(i) - N_tail*log( candidate_xmin-offset )
         candidate_alpha = 1.0_dp + N_tail/log_sum
 
-        if ( (candidate_alpha - 1.0_dp) / sqrt( N_tail ) >= 0.1_dp ) then !> Python powerlaw package schizoid flag
-            exit mle_main_loop
-        endif
+        !if ( (candidate_alpha - 1.0_dp) / sqrt( N_tail ) >= 0.1_dp ) then !> Python powerlaw package schizoid flag
+        !    exit mle_main_loop
+        !endif
          
         !> Fully vectorized O(N_tail) calculation of ks_stats
         if ( this%data%data_is_discrete ) then
@@ -301,8 +279,8 @@ subroutine internal_engine_to_find_best_parameters( this , r_data , xmin , alpha
             ks_plus_arr( 1:n_tail_int ) = ((seq( 1:n_tail_int ) / N_tail) - current_cdf( 1:n_tail_int ))*w( 1:n_tail_int )
             ks_minus_arr( 1:n_tail_int ) = (current_cdf( 1:n_tail_int ) - ((seq( 1:n_tail_int ) - 1.0_dp) / N_tail))*w( 1:n_tail_int )
         else
-            ks_plus_arr( 1:n_tail_int )  = current_cdf( 1:n_tail_int ) - (first_idx(i:N) - real(i, dp))/N_tail
-            ks_minus_arr( 1:n_tail_int ) = (first_idx(i:N) - real(i, dp))/N_tail - current_cdf( 1:n_tail_int )
+            ks_plus_arr( 1:n_tail_int ) = ((seq( 1:n_tail_int ) / N_tail) - current_cdf( 1:n_tail_int ))
+            ks_minus_arr( 1:n_tail_int ) = (current_cdf( 1:n_tail_int ) - ((seq( 1:n_tail_int ) - 1.0_dp) / N_tail))
             
         endif
         !> The current stats is update by this functional
