@@ -196,7 +196,7 @@ elemental function zeta_function(s, a) result(res)
         real(dp), intent(in) :: s, a
         real(dp) :: res, term, sum_val, a_plus_N, s_minus_1
         integer(i4) :: k
-        integer(i4), parameter :: N_terms = 105 !> Number of direct terms before asymptotic expansion
+        integer(i4), parameter :: N_terms = 15 !> Number of direct terms before asymptotic expansion
 
         ! 1. Direct summation of the first N_terms
         sum_val = 0.0_dp
