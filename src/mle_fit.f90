@@ -131,8 +131,8 @@ subroutine internal_core_fit( this, r_data, xmin, theta, std_theta, ks, lambda_i
     !> Working variables
     real(dp) :: prev_ks, prev_xmin, ks_statistics, current_ks, candidate_xmin
     real(dp) :: N_tail, lambda 
-    integer(i4) :: i, N, n_tail_int, tail_len, non_zero_idx, prev_tail_len, n_p , x_min_pos 
-    logical  :: apply_weight, save_history, is_decreasing
+    integer(i4) :: i, N, n_tail_int, tail_len, non_zero_idx, prev_tail_len, n_p , x_min_pos, i_0 , i_f
+    logical  :: apply_weight, save_history, is_decreasing , has_fixed_xmin
     logical , allocatable :: mask_end(:), mask_start(:)
 
     !> Dynamic parameter arrays
@@ -205,14 +205,13 @@ subroutine internal_core_fit( this, r_data, xmin, theta, std_theta, ks, lambda_i
         allocate( mle_theta_arr(n_p, N), mle_std_theta_arr(n_p, N) )
     endif
 
-    !> Call the pre-computation routine of the specific distribution
-    call this%dist%pre_compute( this%data )
-
-    present_xmin_IF: if (present(x_min_in)) then
-        candidate_xmin = x_min_in
+    x_min_pos = 0
+    i_0 = 1 ; i_f = N-1
+    has_fixed_xmin = present(x_min_in)
+    if (has_fixed_xmin) then
         x_min_pos = 0
         find_x_min_pos_loop: do i = 1, N-1
-        if ( abs(candidate_xmin - this%data%arr(i)) < bin_tolerance ) then
+        if ( abs(x_min_in - this%data%arr(i)) < bin_tolerance ) then
             x_min_pos = i
             exit find_x_min_pos_loop
         else
@@ -220,45 +219,16 @@ subroutine internal_core_fit( this, r_data, xmin, theta, std_theta, ks, lambda_i
         endif
         enddo find_x_min_pos_loop
         if ( x_min_pos == 0 ) error stop "Error: passed x_min not found in data"
-        i = x_min_pos
-        n_tail_int = N - i + 1            
-        N_tail = real(n_tail_int, dp) 
-        mask_end(1:n_tail_int-1) = ( abs(this%data%arr(i : N-1) - this%data%arr(i+1 : N)) >= bin_tolerance )
-        mask_end(n_tail_int)     = .TRUE. 
-        mask_start(2:n_tail_int) = mask_end(1:n_tail_int-1)
-        mask_start(1)            = .TRUE.
+        i_0 = x_min_pos
+        i_f = x_min_pos
+    endif 
 
-        !> DELEGATE TO DISTRIBUTION: Evaluate current tail and get parameters + CDF
-        call this%dist%evaluate_tail( i, N, candidate_xmin, this%data, &
-                                      current_cdf(1:n_tail_int),       &
-                                      cand_theta, cand_std )
+    !> Call the pre-computation routine of the specific distribution
+    call this%dist%pre_compute( this%data )
 
-        !> Calculate KS Statistics
-        if ( apply_weight ) then
-            w( 1:n_tail_int ) = 1.0_dp / sqrt( (current_cdf(1:n_tail_int) * (1.0_dp - current_cdf(1:n_tail_int)) + eps) ) 
-            ks_plus_arr( 1:n_tail_int )  = abs( (seq( 1:n_tail_int ) / N_tail) - current_cdf( 1:n_tail_int ) ) * w( 1:n_tail_int )
-            ks_minus_arr( 1:n_tail_int ) = abs( current_cdf( 1:n_tail_int ) - ((seq( 1:n_tail_int ) - 1.0_dp) / N_tail) ) * w( 1:n_tail_int )
-        else            
-            ks_plus_arr( 1:n_tail_int )  = abs( (seq( 1:n_tail_int ) / N_tail) - current_cdf( 1:n_tail_int ) )
-            ks_minus_arr( 1:n_tail_int ) = abs( current_cdf( 1:n_tail_int ) - ((seq( 1:n_tail_int ) - 1.0_dp) / N_tail) )
-        endif
-        if ( this%data%data_is_discrete ) then
-            current_ks = maxval( ks_plus_arr( 1:n_tail_int ) , MASK=mask_end( 1:n_tail_int ))
-        else
-            current_ks = max( maxval(ks_plus_arr( 1:n_tail_int ),  MASK=mask_end( 1:n_tail_int )), maxval(ks_minus_arr( 1:n_tail_int ), MASK=mask_start( 1:n_tail_int )) )
-        endif
-
-        !> The current stats is updated by this functional
-        current_ks = current_ks - lambda*((N_tail/real(N)))
-        tail_len = n_tail_int           
-        best_xmin = candidate_xmin      
-        best_theta = cand_theta
-        best_std = cand_std
-        ks_statistics = current_ks
-    else
     !--- Main Loop ---!
-    mle_main_loop: do i = 1, N-1
-        if ( i > 1 ) then 
+    mle_main_loop: do i = i_0, i_f
+        if ( i > i_0 ) then 
             !> Avoid repeated x_min candidates
             if ( abs(candidate_xmin - this%data%arr(i)) < bin_tolerance ) cycle mle_main_loop
         endif
@@ -295,7 +265,7 @@ subroutine internal_core_fit( this, r_data, xmin, theta, std_theta, ks, lambda_i
         !> The current stats is updated by this functional
         current_ks = current_ks - lambda*((N_tail/real(N)))
         
-        if ( current_ks <= ks_statistics ) then
+        if ( current_ks < ks_statistics .or. i==x_min_pos ) then
             tail_len = n_tail_int           
             best_xmin = candidate_xmin      
             best_theta = cand_theta
@@ -322,7 +292,6 @@ subroutine internal_core_fit( this, r_data, xmin, theta, std_theta, ks, lambda_i
             endif
         endif
     enddo mle_main_loop
-    endif present_xmin_IF
 
     !> Inject best parameters into the distribution
     call this%dist%save_params( best_xmin, (ks_statistics + lambda*(tail_len/real(N))), tail_len, best_theta, best_std )
