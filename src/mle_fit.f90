@@ -230,15 +230,15 @@ subroutine internal_core_fit( this, r_data, xmin, theta, std_theta, ks, lambda_i
         !> Calculate KS Statistics
         if ( apply_weight ) then
             w( 1:n_tail_int ) = 1.0_dp / sqrt( (current_cdf(1:n_tail_int) * (1.0_dp - current_cdf(1:n_tail_int)) + eps) ) 
-        else
-            w( 1:n_tail_int ) = 1.0_dp
-        endif
-        if ( this%data%data_is_discrete ) then
-            ks_plus_arr( 1:n_tail_int ) = abs( (seq( 1:n_tail_int ) / N_tail) - current_cdf( 1:n_tail_int ) ) * w( 1:n_tail_int )
-            current_ks = maxval( ks_plus_arr( 1:n_tail_int ) )
-        else
             ks_plus_arr( 1:n_tail_int )  = abs( (seq( 1:n_tail_int ) / N_tail) - current_cdf( 1:n_tail_int ) ) * w( 1:n_tail_int )
             ks_minus_arr( 1:n_tail_int ) = abs( current_cdf( 1:n_tail_int ) - ((seq( 1:n_tail_int ) - 1.0_dp) / N_tail) ) * w( 1:n_tail_int )
+        else            
+            ks_plus_arr( 1:n_tail_int )  = abs( (seq( 1:n_tail_int ) / N_tail) - current_cdf( 1:n_tail_int ) )
+            ks_minus_arr( 1:n_tail_int ) = abs( current_cdf( 1:n_tail_int ) - ((seq( 1:n_tail_int ) - 1.0_dp) / N_tail) )
+        endif
+        if ( this%data%data_is_discrete ) then
+            current_ks = maxval( ks_plus_arr( 1:n_tail_int ) )
+        else
             current_ks = max( maxval(ks_plus_arr( 1:n_tail_int )), maxval(ks_minus_arr( 1:n_tail_int )) )
         endif
 
@@ -269,15 +269,15 @@ subroutine internal_core_fit( this, r_data, xmin, theta, std_theta, ks, lambda_i
         !> Calculate KS Statistics
         if ( apply_weight ) then
             w( 1:n_tail_int ) = 1.0_dp / sqrt( (current_cdf(1:n_tail_int) * (1.0_dp - current_cdf(1:n_tail_int)) + eps) ) 
-        else
-            w( 1:n_tail_int ) = 1.0_dp
-        endif
-        if ( this%data%data_is_discrete ) then
-            ks_plus_arr( 1:n_tail_int ) = abs( (seq( 1:n_tail_int ) / N_tail) - current_cdf( 1:n_tail_int ) ) * w( 1:n_tail_int )
-            current_ks = maxval( ks_plus_arr( 1:n_tail_int ) )
-        else
             ks_plus_arr( 1:n_tail_int )  = abs( (seq( 1:n_tail_int ) / N_tail) - current_cdf( 1:n_tail_int ) ) * w( 1:n_tail_int )
             ks_minus_arr( 1:n_tail_int ) = abs( current_cdf( 1:n_tail_int ) - ((seq( 1:n_tail_int ) - 1.0_dp) / N_tail) ) * w( 1:n_tail_int )
+        else            
+            ks_plus_arr( 1:n_tail_int )  = abs( (seq( 1:n_tail_int ) / N_tail) - current_cdf( 1:n_tail_int ) )
+            ks_minus_arr( 1:n_tail_int ) = abs( current_cdf( 1:n_tail_int ) - ((seq( 1:n_tail_int ) - 1.0_dp) / N_tail) )
+        endif
+        if ( this%data%data_is_discrete ) then
+            current_ks = maxval( ks_plus_arr( 1:n_tail_int ) )
+        else
             current_ks = max( maxval(ks_plus_arr( 1:n_tail_int )), maxval(ks_minus_arr( 1:n_tail_int )) )
         endif
 
