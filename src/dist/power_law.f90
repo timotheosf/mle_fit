@@ -105,9 +105,9 @@ subroutine pl_evaluate_tail(this, i, N, x_min_candidate, r_data, cdf_out, theta_
 
     !> Full vectorized cdf calulation 
     if (r_data%data_is_discrete) then
-        zeta_denom = zeta_function(candidate_alpha, x_min_candidate)
+        zeta_denom = 1._dp/zeta_function(candidate_alpha, x_min_candidate)
         
-        cdf_out(1:n_tail_int) = 1.0_dp - (zeta_function(candidate_alpha, r_data%arr(i : i+n_tail_int-1) + 1.0_dp) / zeta_denom )
+        cdf_out(1:n_tail_int) = 1.0_dp - (zeta_function(candidate_alpha, r_data%arr(i : i+n_tail_int-1) + 1.0_dp) * zeta_denom )
     else
 
         log_xmin = log(x_min_candidate)
