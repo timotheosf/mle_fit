@@ -107,30 +107,7 @@ subroutine pl_evaluate_tail(this, i, N, x_min_candidate, r_data, cdf_out, theta_
     if (r_data%data_is_discrete) then
         zeta_denom = zeta_function(candidate_alpha, x_min_candidate)
         
-        last_x = r_data%arr(i)
-        
-        last_cdf = (last_x**(-candidate_alpha)) / zeta_denom
-        cdf_out(1) = last_cdf
-        
-        do j = 2, n_tail_int
-            current_x = r_data%arr(i+j-1)
-            
-            if (current_x == last_x) then
-                cdf_out(j) = last_cdf
-            else
-                gap = current_x - last_x
-                if (gap < 20.0_dp) then
-                    do k_int = int(last_x)+1, int(current_x)
-                        last_cdf = last_cdf + (real(k_int, dp)**(-candidate_alpha)) / zeta_denom
-                    end do
-                else
-                    last_cdf = 1.0_dp - zeta_function(candidate_alpha, current_x + 1.0_dp) / zeta_denom
-                endif
-                
-                cdf_out(j) = last_cdf
-                last_x = current_x
-            endif
-        enddo
+        cdf_out(1:n_tail_int) = 1.0_dp - (zeta_function(candidate_alpha, r_data%arr(i : i+n_tail_int-1) + 1.0_dp) / zeta_denom )
     else
 
         log_xmin = log(x_min_candidate)
