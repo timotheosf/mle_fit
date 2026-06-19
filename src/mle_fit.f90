@@ -133,6 +133,7 @@ subroutine internal_core_fit( this, r_data, xmin, theta, std_theta, ks, lambda_i
     real(dp) :: N_tail, lambda 
     integer(i4) :: i, N, n_tail_int, tail_len, non_zero_idx, prev_tail_len, n_p , x_min_pos 
     logical  :: apply_weight, save_history, is_decreasing
+    logical , allocatable :: mask_end(:), mask_start(:)
 
     !> Dynamic parameter arrays
     real(dp) :: best_xmin
@@ -183,6 +184,7 @@ subroutine internal_core_fit( this, r_data, xmin, theta, std_theta, ks, lambda_i
 
     !> Allocating common calculation variables
     allocate( ks_plus_arr(N), ks_minus_arr(N), seq(N), current_cdf(N) )
+    allocate( mask_end(N), mask_start(N) )
     seq(N) = real(N,dp)
     do i = N-1, 1, -1
         seq(i) = real(i,dp)
@@ -220,7 +222,11 @@ subroutine internal_core_fit( this, r_data, xmin, theta, std_theta, ks, lambda_i
         if ( x_min_pos == 0 ) error stop "Error: passed x_min not found in data"
         i = x_min_pos
         n_tail_int = N - i + 1            
-        N_tail = real(n_tail_int, dp)     
+        N_tail = real(n_tail_int, dp) 
+        mask_end(1:n_tail_int-1) = ( abs(this%data%arr(i : N-1) - this%data%arr(i+1 : N)) >= bin_tolerance )
+        mask_end(n_tail_int)     = .TRUE. 
+        mask_start(2:n_tail_int) = mask_end(1:n_tail_int-1)
+        mask_start(1)            = .TRUE.
 
         !> DELEGATE TO DISTRIBUTION: Evaluate current tail and get parameters + CDF
         call this%dist%evaluate_tail( i, N, candidate_xmin, this%data, &
@@ -237,9 +243,9 @@ subroutine internal_core_fit( this, r_data, xmin, theta, std_theta, ks, lambda_i
             ks_minus_arr( 1:n_tail_int ) = abs( current_cdf( 1:n_tail_int ) - ((seq( 1:n_tail_int ) - 1.0_dp) / N_tail) )
         endif
         if ( this%data%data_is_discrete ) then
-            current_ks = maxval( ks_plus_arr( 1:n_tail_int ) )
+            current_ks = maxval( ks_plus_arr( 1:n_tail_int ) , MASK=mask_end( 1:n_tail_int ))
         else
-            current_ks = max( maxval(ks_plus_arr( 1:n_tail_int )), maxval(ks_minus_arr( 1:n_tail_int )) )
+            current_ks = max( maxval(ks_plus_arr( 1:n_tail_int ),  MASK=mask_end( 1:n_tail_int )), maxval(ks_minus_arr( 1:n_tail_int ), MASK=mask_start( 1:n_tail_int )) )
         endif
 
         !> The current stats is updated by this functional
@@ -259,7 +265,12 @@ subroutine internal_core_fit( this, r_data, xmin, theta, std_theta, ks, lambda_i
 
         candidate_xmin = this%data%arr(i)
         n_tail_int = N - i + 1            
-        N_tail = real(n_tail_int, dp)     
+        N_tail = real(n_tail_int, dp) 
+
+        mask_end(1:n_tail_int-1) = ( abs(this%data%arr(i : N-1) - this%data%arr(i+1 : N)) >= bin_tolerance )
+        mask_end(n_tail_int)     = .TRUE. 
+        mask_start(2:n_tail_int) = mask_end(1:n_tail_int-1)
+        mask_start(1)            = .TRUE.
 
         !> DELEGATE TO DISTRIBUTION: Evaluate current tail and get parameters + CDF
         call this%dist%evaluate_tail( i, N, candidate_xmin, this%data, &
@@ -276,9 +287,9 @@ subroutine internal_core_fit( this, r_data, xmin, theta, std_theta, ks, lambda_i
             ks_minus_arr( 1:n_tail_int ) = abs( current_cdf( 1:n_tail_int ) - ((seq( 1:n_tail_int ) - 1.0_dp) / N_tail) )
         endif
         if ( this%data%data_is_discrete ) then
-            current_ks = maxval( ks_plus_arr( 1:n_tail_int ) )
+            current_ks = maxval( ks_plus_arr( 1:n_tail_int ) , MASK=mask_end( 1:n_tail_int ))
         else
-            current_ks = max( maxval(ks_plus_arr( 1:n_tail_int )), maxval(ks_minus_arr( 1:n_tail_int )) )
+            current_ks = max( maxval(ks_plus_arr( 1:n_tail_int ),  MASK=mask_end( 1:n_tail_int )), maxval(ks_minus_arr( 1:n_tail_int ), MASK=mask_start( 1:n_tail_int )) )
         endif
 
         !> The current stats is updated by this functional
