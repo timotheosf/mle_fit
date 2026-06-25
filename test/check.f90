@@ -16,15 +16,13 @@ call pl_2%start_pl()
 
 
 call engine_1%data%from_file( file_freq_mb )
-call engine_1%fast_fit( distribuiton=pl_1 )
-call engine_1%p_value( N_samples=100 )
+call engine_1%greed_fit( distribution=pl_1 , look_whole=.true. )
+call engine_1%report()
+call pl_1%start_pl()
+call engine_1%fast_fit( distribution=pl_1 )
+call engine_1%p_value( N_samples=2500 )
 call engine_1%report()
 
-
-call engine_2%data%from_file( file_rank_mb )
-call engine_2%fast_fit( distribuiton=pl_2 )
-call engine_2%p_value( N_samples=100 )
-call engine_2%report()
 
 close(file_freq_mb)
 close(file_rank_mb)
