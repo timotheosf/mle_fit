@@ -13,7 +13,7 @@ public ::  mle
         type(random_data) :: data
         class(empirical_distribution), allocatable :: dist
 
-        integer(i4) :: n_tail                   !> Empirical distribuiton tail length 
+        integer(i4) :: n_tail                   !> Empirical distribution tail length 
         real(dp) :: goodness_of_fit             !> P-value
         real(dp) :: mle_time                    !> Time costed for fitting
         real(dp) :: hypothesis_time             !> Time costed for hypothesis testing
@@ -45,6 +45,7 @@ public ::  mle
         !> Public
         procedure :: fast_fit => fast_find_best_parameters
         procedure :: lamb_fit => lambda_find_best_parameters
+        procedure :: greed_fit => greed_search_to_best_parameters
         procedure :: report => print_report
         procedure :: p_value => null_hypothesis_test 
     
@@ -52,20 +53,20 @@ public ::  mle
 
 contains
 
-subroutine fast_find_best_parameters( this, r_data, distribuiton, xmin, theta, std_theta, ks, use_weight , fixed_xmin )
+subroutine fast_find_best_parameters( this, r_data, distribution, xmin, theta, std_theta, ks, use_weight , fixed_xmin )
     class(mle), intent(inout) :: this
-    class(empirical_distribution), intent(inout) :: distribuiton
+    class(empirical_distribution), intent(inout) :: distribution
     class(*), intent(in), optional :: r_data(:)
     logical , intent(in), optional :: use_weight
     real(dp), intent(out), optional :: theta(:), xmin, ks, std_theta(:)
     real(dp), intent(in), optional :: fixed_xmin
-    call this%bind_dist( distribuiton )
+    call this%bind_dist( distribution )
     call this%core_fit( r_data=r_data, xmin=xmin, theta=theta, std_theta=std_theta, ks=ks, use_weight=use_weight , x_min_in=fixed_xmin )
 end subroutine fast_find_best_parameters
 
-subroutine lambda_find_best_parameters( this, r_data, distribuiton, xmin, theta, std_theta, ks, use_weight, lambda_in )
+subroutine lambda_find_best_parameters( this, r_data, distribution, xmin, theta, std_theta, ks, use_weight, lambda_in )
     class(mle), intent(inout) :: this
-    class(empirical_distribution), intent(inout) :: distribuiton
+    class(empirical_distribution), intent(inout) :: distribution
     class(*), intent(in), optional :: r_data(:)
     logical , intent(in), optional :: use_weight
     real(dp), intent(out), optional :: theta(:), xmin, ks, std_theta(:)
@@ -73,15 +74,81 @@ subroutine lambda_find_best_parameters( this, r_data, distribuiton, xmin, theta,
     real(dp) :: lambda
     lambda = 0.15_dp
     if (present(lambda_in)) lambda=lambda_in
-    call this%bind_dist( distribuiton )
+    call this%bind_dist( distribution )
     call this%core_fit( r_data=r_data, xmin=xmin, theta=theta, std_theta=std_theta, ks=ks, use_weight=use_weight, lambda_in=lambda )
 end subroutine lambda_find_best_parameters
 
-subroutine bind_dist( this, distribuiton )
+subroutine greed_search_to_best_parameters( this, r_data, distribution, use_weight, look_whole )
     class(mle), intent(inout) :: this
-    class(empirical_distribution), intent(in) :: distribuiton
+    class(empirical_distribution), intent(inout) :: distribution !> Corrigido typo (estava distribution)
+    class(*), intent(in), optional :: r_data(:)                  !> Faltou o (:) para arrays polimórficos
+    logical, intent(in), optional :: use_weight, look_whole
+
+    logical :: run_over_all_data
+    integer(i4) :: greed_tail , i , N , non_zero_size , n_p      !> Adicionado non_zero_size e n_p
+    real(dp) :: greed_xmin , bin_tolerance, greed_stats          !> Adicionado greed_stats
+    real(dp), allocatable :: greed_theta(:) , greed_std(:)
+
+    run_over_all_data = .false.
+    if (present(look_whole)) run_over_all_data = look_whole
+    call this%bind_dist( distribution )
+    if (present(r_data)) call this%init(r_data)
+    n_p = this%dist%num_params
+    allocate(greed_theta(n_p), greed_std(n_p))
+    select case( run_over_all_data )
+    ! =========================================================================
+    ! CASE 1: search for the lower x_min in all visited minima
+    ! =========================================================================
+    case( .false. )
+        call this%core_fit( theta=greed_theta, std_theta=greed_std, ks=greed_stats, use_weight=use_weight, track_history=.true. )
+        non_zero_size = size( this%x_min_arr )
+        if (non_zero_size == 1) return
+        run_historic: do i = 1, non_zero_size
+            greed_xmin = this%x_min_arr(i)
+            greed_stats = this%stats_arr(i)
+            greed_tail = this%n_tail_arr(i)
+            greed_theta(:) = this%theta_arr(:, i)
+            greed_std(:) = this%std_theta_arr(:, i)
+            !> Inject best parameters into the distribution
+            call this%dist%save_params( greed_xmin, greed_stats, greed_tail, greed_theta, greed_std )
+            call this%p_value( N_samples=100 )
+            if ( this%goodness_of_fit > 0.05_dp ) then
+                call this%p_value( N_samples=2500 )
+                if ( this%goodness_of_fit >= 0.1_dp ) exit run_historic
+            endif
+        enddo run_historic
+    ! =========================================================================
+    !   CASE 2: search for a x_min in all data, ignoring if it's a KS minima or not
+    ! =========================================================================
+    case( .true. )
+        N = this%data%len
+        if (this%data%data_is_discrete) then
+            bin_tolerance = 0.5_dp
+        else
+            bin_tolerance = (this%data%arr(N)-this%data%arr(1))/N
+        endif
+        run_over_data: do i = 1, N-1
+            if ( i > 1 ) then 
+                !> Avoid repeated x_min candidates
+                if ( abs(greed_xmin - this%data%arr(i)) < bin_tolerance ) cycle run_over_data
+            endif
+            greed_xmin = this%data%arr(i)
+            call this%core_fit( theta=greed_theta, std_theta=greed_std, ks=greed_stats, use_weight=use_weight, x_min_in=greed_xmin )
+            greed_tail = this%n_tail
+            call this%p_value( N_samples=100 )
+            if ( this%goodness_of_fit > 0.05_dp ) then
+                call this%p_value( N_samples=2500 )
+                if ( this%goodness_of_fit >= 0.1_dp ) exit run_over_data
+            endif
+        enddo run_over_data
+    end select
+end subroutine greed_search_to_best_parameters
+
+subroutine bind_dist( this, distribution )
+    class(mle), intent(inout) :: this
+    class(empirical_distribution), intent(in) :: distribution
     if ( allocated(this%dist) ) deallocate( this%dist )
-    allocate( this%dist, source=distribuiton ) !> Dynamic binding the distribution
+    allocate( this%dist, source=distribution ) !> Dynamic binding the distribution
 end subroutine bind_dist
 
 subroutine start_adjust_parameters( this, r_data, pre_ordering )    
