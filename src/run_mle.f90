@@ -397,7 +397,7 @@ subroutine null_hypothesis_test( this, N_samples, track_penalities, p_value )
     
     !> Thread specific arrays and instances
     real(dp), allocatable :: random_chooses( : ), synth_data_arr( : )
-    type(mle) :: synth_mle
+    type(mle_t) :: synth_mle
 
     !--- Initializing ---!
     call this%internal_clock%start()

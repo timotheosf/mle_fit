@@ -1,10 +1,9 @@
 program check
 use mle_kinds_mod
-use power_law_mod   
 use mle_fit_mod     
 implicit none
-type(mle) :: engine_1, engine_2
-type(power_law) :: pl_1, pl_2
+type(mle_t) :: engine_1, engine_2
+type(power_law_t) :: pl_1, pl_2
 integer(i4) :: file_freq_mb, file_rank_mb
 
 open( newunit=file_freq_mb , file='test/mb_freq_data.dat' , action='read' , status='old' )
@@ -22,6 +21,7 @@ call pl_1%start_pl()
 call engine_1%fast_fit( dist=pl_1 )
 call engine_1%p_value( N_samples=2500 )
 call engine_1%report()
+call fit( r_data=engine_1%data%arr , dist=power_law() )
 
 
 close(file_freq_mb)
