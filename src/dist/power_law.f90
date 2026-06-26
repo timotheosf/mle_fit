@@ -7,13 +7,12 @@ implicit none
 private
 public :: power_law
 
-    type, extends(empirical_distribution) :: power_law
+    type, extends(distribution) :: power_law
         
         !> Auxiliary work variables
         real(dp), allocatable, private :: log_x(:)
         real(dp), allocatable, private :: sum_log_x(:)
         real(dp), private :: offset
-
     
     contains
 
@@ -21,26 +20,17 @@ public :: power_law
         procedure :: alpha
         procedure :: std_alpha
 
-        !> PDF, CDF and CCDF calculations
-        procedure, private :: core_pdf , core_ccdf , &
-                              real_pdf , int_pdf , &
-                              real_ccdf , int_ccdf , &
-                              real_cdf , int_cdf
-        generic :: pdf => real_pdf , int_pdf
-        generic :: cdf => real_cdf , int_cdf
-        generic :: ccdf => real_ccdf , int_ccdf
-
         !> Allocating theta list
         procedure :: start_pl => wake_up_power_law
 
-        !> Abstract interface procedures for power_law distribution
+        !> Static binding procedures for power_law distribution
         procedure :: pre_compute => pl_pre_compute
         procedure :: evaluate_tail => pl_evaluate_tail
         procedure :: get_param_names => pl_get_param_names
         procedure :: generate_rnd_array => pl_generate_rnd_array
+        procedure :: core_pdf => pl_core_pdf
+        procedure :: core_cdf => pl_core_cdf
 
-        
-        
     end type
       
 contains
@@ -125,7 +115,6 @@ subroutine pl_evaluate_tail(this, i, N, x_min_candidate, r_data, cdf_out, theta_
             cdf_out(j - i + 1) = last_cdf
         enddo
     else
-
         log_xmin = log(x_min_candidate)
         alpha_minus_1 = candidate_alpha - 1.0_dp
         cdf_out(1:n_tail_int) = 1.0_dp - exp(alpha_minus_1 * (log_xmin - this%log_x(i:N)))
@@ -177,90 +166,36 @@ function std_alpha( this ) result(res)
     res = this%std_theta(1)
 end function
 
-elemental function core_pdf( this , x , discrete ) result(res)
+elemental function pl_core_pdf(this, x, discrete) result(res)
     class(power_law), intent(in) :: this
     real(dp), intent(in) :: x
-    logical, intent(in), optional :: discrete
-    logical :: x_is_discrete
+    logical, intent(in)  :: discrete
     real(dp) :: res
-
     if (x < this%x_min) then
         res = 0.0_dp
         return
     endif
-
-    x_is_discrete=.FALSE.
-    if (present(discrete)) x_is_discrete=discrete
-    if (x_is_discrete) then
-        res = x**( -this%theta(1) )/zeta_function(this%theta(1), this%x_min)
+    if (discrete) then
+        res = x**( -this%theta(1) ) / zeta_function(this%theta(1), this%x_min)
     else
-        res = (this%theta(1)-1._dp) * (this%x_min**(this%theta(1)-1._dp) )* x**( -this%theta(1) )
+        res = (this%theta(1) - 1._dp) * (this%x_min**(this%theta(1) - 1._dp)) * x**( -this%theta(1) )
     endif
-end function core_pdf
+end function pl_core_pdf
 
-elemental function core_ccdf( this , x , discrete ) result(res)
+elemental function pl_core_cdf(this, x, discrete) result(res)
     class(power_law), intent(in) :: this
     real(dp), intent(in) :: x
-    logical, intent(in), optional :: discrete
-    logical :: x_is_discrete
+    logical, intent(in)  :: discrete
     real(dp) :: res
-
     if (x < this%x_min) then
-        res = 1.0_dp
+        res = 0.0_dp
         return
     endif
-
-    x_is_discrete=.FALSE.
-    if (present(discrete)) x_is_discrete=discrete
-    if (x_is_discrete) then
-        res = zeta_function(this%theta(1), x)/zeta_function(this%theta(1), this%x_min)
+    if (discrete) then
+        res = 1.0_dp - (zeta_function(this%theta(1), x) / zeta_function(this%theta(1), this%x_min))
     else
-        res = ( x/this%x_min) ** (-this%theta(1)+1._dp)
+        res = 1.0_dp - ((x / this%x_min)**(-this%theta(1) + 1.0_dp))
     endif
-end function core_ccdf
-
-elemental function real_pdf( this , x ) result(res)
-    class(power_law), intent(in) :: this
-    real(dp), intent(in) :: x
-    real(dp) :: res
-    res = this%core_pdf( x )
-end function real_pdf
-
-elemental function int_pdf( this , x ) result(res)
-    class(power_law), intent(in) :: this
-    integer(i4), intent(in) :: x
-    real(dp) :: res
-    res = this%core_pdf( real(x,dp) , discrete=.true. )
-end function int_pdf
-
-elemental function real_ccdf( this , x ) result(res)
-    class(power_law), intent(in) :: this
-    real(dp), intent(in) :: x
-    real(dp) :: res
-    res = this%core_ccdf( x )
-end function real_ccdf
-
-elemental function int_ccdf( this , x ) result(res)
-    class(power_law), intent(in) :: this
-    integer(i4), intent(in) :: x
-    real(dp) :: res
-    res = this%core_ccdf( real(x,dp) , discrete=.true. )
-end function int_ccdf
-
-elemental function real_cdf( this , x ) result(res)
-    class(power_law), intent(in) :: this
-    real(dp), intent(in) :: x
-    real(dp) :: res
-    res = 1.0_dp - this%ccdf(x)
-end function real_cdf
-
-elemental function int_cdf( this , x ) result(res)
-    class(power_law), intent(in) :: this
-    integer(i4), intent(in) :: x
-    real(dp) :: res
-    res = 1.0_dp - this%ccdf(x)
-end function int_cdf
-
-
+end function pl_core_cdf
 
 end module power_law_mod
