@@ -9,11 +9,11 @@ public ::  mle
 
     type :: mle
     
-        !> This method needs a data array and a allocated distribution
+        !> This method needs a data array and a allocated dist
         type(empirical_data) :: data
-        class(empirical_distribution), allocatable :: dist
+        class(distribution), allocatable :: dist
 
-        integer(i4) :: n_tail                   !> Empirical distribution tail length 
+        integer(i4) :: n_tail                   !> Empirical dist tail length 
         real(dp) :: goodness_of_fit             !> P-value
         real(dp) :: mle_time                    !> Time costed for fitting
         real(dp) :: hypothesis_time             !> Time costed for hypothesis testing
@@ -53,20 +53,20 @@ public ::  mle
 
 contains
 
-subroutine fast_find_best_parameters( this, r_data, distribution, xmin, theta, std_theta, ks, use_weight , fixed_xmin )
+subroutine fast_find_best_parameters( this, r_data, dist, xmin, theta, std_theta, ks, use_weight , fixed_xmin )
     class(mle), intent(inout) :: this
-    class(empirical_distribution), intent(inout) :: distribution
+    class(distribution), intent(inout) :: dist
     class(*), intent(in), optional :: r_data(:)
     logical , intent(in), optional :: use_weight
     real(dp), intent(out), optional :: theta(:), xmin, ks, std_theta(:)
     real(dp), intent(in), optional :: fixed_xmin
-    call this%bind_dist( distribution )
+    call this%bind_dist( dist )
     call this%core_fit( r_data=r_data, xmin=xmin, theta=theta, std_theta=std_theta, ks=ks, use_weight=use_weight , x_min_in=fixed_xmin )
 end subroutine fast_find_best_parameters
 
-subroutine lambda_find_best_parameters( this, r_data, distribution, xmin, theta, std_theta, ks, use_weight, lambda_in )
+subroutine lambda_find_best_parameters( this, r_data, dist, xmin, theta, std_theta, ks, use_weight, lambda_in )
     class(mle), intent(inout) :: this
-    class(empirical_distribution), intent(inout) :: distribution
+    class(distribution), intent(inout) :: dist
     class(*), intent(in), optional :: r_data(:)
     logical , intent(in), optional :: use_weight
     real(dp), intent(out), optional :: theta(:), xmin, ks, std_theta(:)
@@ -74,31 +74,30 @@ subroutine lambda_find_best_parameters( this, r_data, distribution, xmin, theta,
     real(dp) :: lambda
     lambda = 0.15_dp
     if (present(lambda_in)) lambda=lambda_in
-    call this%bind_dist( distribution )
+    call this%bind_dist( dist )
     call this%core_fit( r_data=r_data, xmin=xmin, theta=theta, std_theta=std_theta, ks=ks, use_weight=use_weight, lambda_in=lambda )
 end subroutine lambda_find_best_parameters
 
-subroutine greed_search_to_best_parameters( this, r_data, distribution, use_weight, look_whole )
+subroutine greed_search_to_best_parameters( this, r_data, dist, use_weight, look_whole )
     class(mle), intent(inout) :: this
-    class(empirical_distribution), intent(inout) :: distribution !> Corrigido typo (estava distribution)
+    class(distribution), intent(inout) :: dist !> Corrigido typo (estava dist)
     class(*), intent(in), optional :: r_data(:)                  !> Faltou o (:) para arrays polimórficos
     logical, intent(in), optional :: use_weight, look_whole
 
     logical :: run_over_all_data
     integer(i4) :: greed_tail , i , N , non_zero_size , n_p      
-    real(dp) :: greed_xmin , bin_tolerance, greed_stats, 
+    real(dp) :: greed_xmin , bin_tolerance, greed_stats, starting_greed_time, ending_greed_time
     real(dp), allocatable :: greed_theta(:) , greed_std(:)
 
+    starting_greed_time = this%internal_clock%get_now()
     run_over_all_data = .false.
     if (present(look_whole)) run_over_all_data = look_whole
-    call this%bind_dist( distribution )
+    call this%bind_dist( dist )
     if (present(r_data)) call this%init(r_data)
     n_p = this%dist%num_params
     allocate(greed_theta(n_p), greed_std(n_p))
     select case( run_over_all_data )
-    ! =========================================================================
-    ! CASE 1: search for the lower x_min in all visited minima
-    ! =========================================================================
+    !> Case 1: search for the lower x_min in all visited minima
     case( .false. )
         call this%core_fit( theta=greed_theta, std_theta=greed_std, ks=greed_stats, use_weight=use_weight, track_history=.true. )
         non_zero_size = size( this%x_min_arr )
@@ -109,7 +108,7 @@ subroutine greed_search_to_best_parameters( this, r_data, distribution, use_weig
             greed_tail = this%n_tail_arr(i)
             greed_theta(:) = this%theta_arr(:, i)
             greed_std(:) = this%std_theta_arr(:, i)
-            !> Inject best parameters into the distribution
+            !> Inject best parameters into the dist
             call this%dist%save_params( greed_xmin, greed_stats, greed_tail, greed_theta, greed_std )
             call this%p_value( N_samples=100 )
             if ( this%goodness_of_fit > 0.05_dp ) then
@@ -117,9 +116,7 @@ subroutine greed_search_to_best_parameters( this, r_data, distribution, use_weig
                 if ( this%goodness_of_fit >= 0.1_dp ) exit run_historic
             endif
         enddo run_historic
-    ! =========================================================================
-    !   CASE 2: search for a x_min in all data, ignoring if it's a KS minima or not
-    ! =========================================================================
+    !> Case 2: search for a x_min in all data, ignoring if it's a KS minima or not
     case( .true. )
         N = this%data%len
         bin_tolerance = this%data%bin()
@@ -138,13 +135,15 @@ subroutine greed_search_to_best_parameters( this, r_data, distribution, use_weig
             endif
         enddo run_over_data
     end select
+    ending_greed_time = this%internal_clock%get_now()
+    this%mle_time = (ending_greed_time-starting_greed_time)/this%internal_clock%time_rate
 end subroutine greed_search_to_best_parameters
 
-subroutine bind_dist( this, distribution )
+subroutine bind_dist( this, dist )
     class(mle), intent(inout) :: this
-    class(empirical_distribution), intent(in) :: distribution
+    class(distribution), intent(in) :: dist
     if ( allocated(this%dist) ) deallocate( this%dist )
-    allocate( this%dist, source=distribution ) !> Dynamic binding the distribution
+    allocate( this%dist, source=dist ) !> Dynamic binding the dist
 end subroutine bind_dist
 
 subroutine start_adjust_parameters( this, r_data, pre_ordering )    
@@ -234,7 +233,7 @@ subroutine internal_core_fit( this, r_data, xmin, theta, std_theta, ks, lambda_i
     endif
     if (apply_weight) allocate(w(N))
 
-    !> Allocate dynamic parameter arrays based on distribution type
+    !> Allocate dynamic parameter arrays based on dist type
     allocate(cand_theta(n_p), cand_std(n_p))
     allocate(best_theta(n_p), best_std(n_p))
     allocate(prev_theta(n_p), prev_std(n_p))
@@ -280,7 +279,7 @@ subroutine internal_core_fit( this, r_data, xmin, theta, std_theta, ks, lambda_i
         i_f = x_min_pos
     endif 
 
-    !> Call the pre-computation routine of the specific distribution
+    !> Call the pre-computation routine of the specific dist
     call this%dist%pre_compute( this%data )
 
     !--- Main Loop ---!
@@ -350,7 +349,7 @@ subroutine internal_core_fit( this, r_data, xmin, theta, std_theta, ks, lambda_i
         endif
     enddo mle_main_loop
 
-    !> Inject best parameters into the distribution
+    !> Inject best parameters into the dist
     call this%dist%save_params( best_xmin, (ks_statistics + lambda*(tail_len/real(N))), tail_len, best_theta, best_std )
     
     !> Update MLE internal flags
@@ -432,7 +431,7 @@ subroutine null_hypothesis_test( this, N_samples, track_penalities, p_value )
     call thread_gen_1%init( base_seed + thread_id * 1999  ) 
     call thread_gen_2%init( base_seed + thread_id * 3999 + 104729  ) 
     
-    !> Deep copy of the polymorphic distribution to the thread-local MLE manager
+    !> Deep copy of the polymorphic dist to the thread-local MLE manager
     allocate(synth_mle%dist, source=this%dist)
     call synth_mle%dist%gen%init( base_seed + thread_id * 7777 )
     allocate(random_chooses(N), synth_data_arr(N))
@@ -453,7 +452,7 @@ subroutine null_hypothesis_test( this, N_samples, track_penalities, p_value )
             synth_data_arr(i) = this%data%arr( floor(real((max_noise_idx),dp)*thread_gen_2%rnd(),kind=i4) + 1 )
         enddo
 
-        !> Step 2: Generate the synthetic tail using the polymorphic distribution method!
+        !> Step 2: Generate the synthetic tail using the polymorphic dist method!
         if (synth_head_size < N) then
             call synth_mle%dist%generate_rnd_array( synth_data_arr(synth_head_size+1 : N) )
         endif
@@ -507,14 +506,14 @@ subroutine print_report(this)
     print '(A)', "         -- Empirical MLE Fitted --      "
     print '(A)', " ----------------------------------------"
 
-    !> Converts x_min to int if the distribution is discrete
+    !> Converts x_min to int if the dist is discrete
     if (this%data%data_is_discrete) then
         print '("  ", A18, " = ", I12)', "x_min", int(this%dist%x_min)
     else
         print '("  ", A18, " = ", F12.4)', "x_min", this%dist%x_min
     end if
 
-    !> Get the parameters names of the distribution
+    !> Get the parameters names of the dist
     p_names = this%dist%get_param_names()
     
     !> Print each param name and corresponding MLE value
