@@ -58,7 +58,7 @@ end subroutine wake_up_power_law
 
 subroutine pl_pre_compute(this, r_data)
     class(power_law), intent(inout) :: this
-    type(random_data), intent(in) :: r_data
+    type(empirical_data), intent(in) :: r_data
     integer(i4) :: N, i
 
     N = r_data%len
@@ -86,7 +86,7 @@ subroutine pl_evaluate_tail(this, i, N, x_min_candidate, r_data, cdf_out, theta_
     class(power_law), intent(inout) :: this
     integer(i4), intent(in) :: i, N
     real(dp), intent(in) :: x_min_candidate
-    type(random_data), intent(in) :: r_data
+    type(empirical_data), intent(in) :: r_data
     real(dp), intent(out) :: cdf_out(:)
     real(dp), intent(out) :: theta_out(:)
     real(dp), intent(out) :: std_theta_out(:)

@@ -10,7 +10,7 @@ public ::  mle
     type :: mle
     
         !> This method needs a data array and a allocated distribution
-        type(random_data) :: data
+        type(empirical_data) :: data
         class(empirical_distribution), allocatable :: dist
 
         integer(i4) :: n_tail                   !> Empirical distribution tail length 
@@ -85,8 +85,8 @@ subroutine greed_search_to_best_parameters( this, r_data, distribution, use_weig
     logical, intent(in), optional :: use_weight, look_whole
 
     logical :: run_over_all_data
-    integer(i4) :: greed_tail , i , N , non_zero_size , n_p      !> Adicionado non_zero_size e n_p
-    real(dp) :: greed_xmin , bin_tolerance, greed_stats          !> Adicionado greed_stats
+    integer(i4) :: greed_tail , i , N , non_zero_size , n_p      
+    real(dp) :: greed_xmin , bin_tolerance, greed_stats, 
     real(dp), allocatable :: greed_theta(:) , greed_std(:)
 
     run_over_all_data = .false.
@@ -122,11 +122,7 @@ subroutine greed_search_to_best_parameters( this, r_data, distribution, use_weig
     ! =========================================================================
     case( .true. )
         N = this%data%len
-        if (this%data%data_is_discrete) then
-            bin_tolerance = 0.5_dp
-        else
-            bin_tolerance = (this%data%arr(N)-this%data%arr(1))/N
-        endif
+        bin_tolerance = this%data%bin()
         run_over_data: do i = 1, N-1
             if ( i > 1 ) then 
                 !> Avoid repeated x_min candidates
@@ -221,13 +217,7 @@ subroutine internal_core_fit( this, r_data, xmin, theta, std_theta, ks, lambda_i
     
     N = this%data%len
     n_p = this%dist%num_params
-
-    !> Defines the offset based in the data original type
-    if (this%data%data_is_discrete) then
-        bin_tolerance = 0.5_dp
-    else
-        bin_tolerance = (this%data%arr(N)-this%data%arr(1))/N
-    endif
+    bin_tolerance = this%data%bin()
 
     !> Applies the lambda_in penalty for the adjust
     if (present(lambda_in)) then

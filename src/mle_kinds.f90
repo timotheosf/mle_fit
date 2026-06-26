@@ -12,7 +12,7 @@ module mle_kinds_mod
         ord_sort
     implicit none
     
-    type :: random_data
+    type :: empirical_data
         !> arr express, in real double precision, any type of numerical data
         real(dp) , allocatable :: arr( : )
         integer(i4) :: len      !> Integer type data length for loops
@@ -26,7 +26,9 @@ module mle_kinds_mod
         procedure :: receive_data     
         procedure :: from_file => receive_data_from_file   
         !> Procedure for sorting data
-        procedure :: sort_data => sorting_random_data
+        procedure :: sort_data => sorting_empirical_data
+        !> Procedure for binning data
+        procedure :: bin       => binning_data
     end type
 
     type :: clock_time !> A benchmark time class
@@ -42,7 +44,7 @@ module mle_kinds_mod
         procedure :: total   => elapsed_time
     endtype
 
-public :: clock_time , random_data , zeta_function
+public :: clock_time , empirical_data , zeta_function
 
 contains
 
@@ -50,7 +52,7 @@ subroutine receive_data( this , r_data )
     !> This subroutine can recive any numerical data type (except qp), and
     !   converts the data to real double precision, to simply the treatment
     !   However, as a good pratice, we've manteined the "wraps" to the power law distribution, if one wants to evaluete pdf/cdf/ccdf at any numerical type value
-    class(random_data) , intent(inout) :: this
+    class(empirical_data) , intent(inout) :: this
     class(*) , intent(in) :: r_data(:) !> Polymorphic variable
 
     if (allocated(this%arr)) deallocate(this%arr)
@@ -83,7 +85,7 @@ subroutine receive_data( this , r_data )
 end subroutine
 
 subroutine receive_data_from_file( this , file_unit , skip_title )
-    class(random_data) , intent(inout) :: this
+    class(empirical_data) , intent(inout) :: this
     integer(i4) , intent(in) :: file_unit
     logical , intent(in) , optional :: skip_title
     character(len=50) :: string
@@ -126,9 +128,9 @@ subroutine receive_data_from_file( this , file_unit , skip_title )
 end subroutine
     
 
-subroutine sorting_random_data( this , pre_ordering , reverse , work_buffer )
+subroutine sorting_empirical_data( this , pre_ordering , reverse , work_buffer )
     !> This subroutines plays the role of an interface to ordering the data
-    class(random_data) , intent(inout) :: this
+    class(empirical_data) , intent(inout) :: this
     logical, intent(in), optional :: pre_ordering, reverse
     logical :: is_arr_pre_ordering, ordering_in_reverse
     real(dp), intent(inout), optional :: work_buffer(:)
@@ -163,6 +165,18 @@ subroutine sorting_random_data( this , pre_ordering , reverse , work_buffer )
     this%len = size( this%arr )
     this%real_len = real( size( this%arr ) , dp )
 end subroutine
+
+function binning_data( this ) result( bin_size )
+    class(empirical_data), intent(in) :: this
+    real(dp) :: bin_size
+    !> Defines the offset based in the data original type
+    if (this%data_is_discrete) then
+        bin_size = 0.5_dp
+    else
+        bin_size = (this%arr( this%len )-this%arr(1))/this%real_len
+    endif
+end function binning_data
+
 
 subroutine start_time_count( this )
     class(clock_time) , intent(inout) :: this

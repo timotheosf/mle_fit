@@ -44,18 +44,18 @@ public :: empirical_distribution
     abstract interface
 
         subroutine pre_compute_intf(this, r_data)
-            import :: empirical_distribution, random_data
+            import :: empirical_distribution, empirical_data
             class(empirical_distribution), intent(inout) :: this
-            type(random_data), intent(in) :: r_data
+            type(empirical_data), intent(in) :: r_data
         end subroutine
 
         subroutine evaluate_tail_intf(this, i, N, x_min_candidate, r_data, cdf_out, theta_out, std_theta_out)
-            import :: empirical_distribution, random_data, i4, dp
+            import :: empirical_distribution, empirical_data, i4, dp
             class(empirical_distribution), intent(inout) :: this
             integer(i4), intent(in) :: i                !> Loop index
             integer(i4), intent(in) :: N                !> Total data size
             real(dp), intent(in) :: x_min_candidate     !> Candidate for x_min
-            type(random_data), intent(in) :: r_data     !> Empirical data
+            type(empirical_data), intent(in) :: r_data     !> Empirical data
             real(dp), intent(out) :: cdf_out(:)         !> CDF for x>=x_min
             real(dp), intent(out) :: theta_out(:)       !> MLE fitted parameters
             real(dp), intent(out) :: std_theta_out(:)   !> Std MLE parameters
