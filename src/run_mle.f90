@@ -5,9 +5,9 @@ use dist_interface_mod
 implicit none
 
 private
-public ::  mle
+public ::  mle_t
 
-    type :: mle
+    type :: mle_t
     
         !> This method needs a data array and a allocated dist
         type(empirical_data) :: data
@@ -49,12 +49,12 @@ public ::  mle
         procedure :: report => print_report
         procedure :: p_value => null_hypothesis_test 
     
-    end type mle
+    end type mle_t
 
 contains
 
 subroutine fast_find_best_parameters( this, r_data, dist, xmin, theta, std_theta, ks, use_weight , fixed_xmin )
-    class(mle), intent(inout) :: this
+    class(mle_t), intent(inout) :: this
     class(distribution), intent(inout) :: dist
     class(*), intent(in), optional :: r_data(:)
     logical , intent(in), optional :: use_weight
@@ -65,7 +65,7 @@ subroutine fast_find_best_parameters( this, r_data, dist, xmin, theta, std_theta
 end subroutine fast_find_best_parameters
 
 subroutine lambda_find_best_parameters( this, r_data, dist, xmin, theta, std_theta, ks, use_weight, lambda_in )
-    class(mle), intent(inout) :: this
+    class(mle_t), intent(inout) :: this
     class(distribution), intent(inout) :: dist
     class(*), intent(in), optional :: r_data(:)
     logical , intent(in), optional :: use_weight
@@ -79,7 +79,7 @@ subroutine lambda_find_best_parameters( this, r_data, dist, xmin, theta, std_the
 end subroutine lambda_find_best_parameters
 
 subroutine greed_search_to_best_parameters( this, r_data, dist, use_weight, look_whole )
-    class(mle), intent(inout) :: this
+    class(mle_t), intent(inout) :: this
     class(distribution), intent(inout) :: dist !> Corrigido typo (estava dist)
     class(*), intent(in), optional :: r_data(:)                  !> Faltou o (:) para arrays polimórficos
     logical, intent(in), optional :: use_weight, look_whole
@@ -140,14 +140,14 @@ subroutine greed_search_to_best_parameters( this, r_data, dist, use_weight, look
 end subroutine greed_search_to_best_parameters
 
 subroutine bind_dist( this, dist )
-    class(mle), intent(inout) :: this
+    class(mle_t), intent(inout) :: this
     class(distribution), intent(in) :: dist
     if ( allocated(this%dist) ) deallocate( this%dist )
     allocate( this%dist, source=dist ) !> Dynamic binding the dist
 end subroutine bind_dist
 
 subroutine start_adjust_parameters( this, r_data, pre_ordering )    
-    class(mle), intent(inout) :: this
+    class(mle_t), intent(inout) :: this
     class(*), intent(in) :: r_data(:)
     logical, intent(in), optional :: pre_ordering
     !> Receive generic data
@@ -172,7 +172,7 @@ subroutine start_adjust_parameters( this, r_data, pre_ordering )
 end subroutine
 
 subroutine internal_core_fit( this, r_data, xmin, theta, std_theta, ks, lambda_in, use_weight, track_history , x_min_in )
-    class(mle), intent(inout) :: this
+    class(mle_t), intent(inout) :: this
     class(*), intent(in), optional :: r_data(:)
     logical , intent(in), optional :: use_weight, track_history
     real(dp), intent(in), optional :: lambda_in , x_min_in
@@ -385,7 +385,7 @@ end subroutine internal_core_fit
 
 subroutine null_hypothesis_test( this, N_samples, track_penalities, p_value )
     !$ use omp_lib
-    class(mle), intent(inout) :: this
+    class(mle_t), intent(inout) :: this
     integer(i4), intent(in), optional :: N_samples 
     logical, intent(in), optional :: track_penalities
     real(dp), intent(out), optional :: p_value
@@ -492,7 +492,7 @@ end subroutine null_hypothesis_test
 
 
 subroutine print_report(this)
-    class(mle), intent(in) :: this
+    class(mle_t), intent(in) :: this
     character(len=20), allocatable :: p_names(:)
     integer(i4) :: k
 
