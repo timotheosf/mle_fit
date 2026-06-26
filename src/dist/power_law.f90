@@ -5,9 +5,10 @@ use dist_interface_mod
 implicit none
 
 private
-public :: power_law
+public :: power_law_t, power_law
 
-    type, extends(distribution) :: power_law
+    !> Extends distribution class to a power_law distribution
+    type, extends(distribution) :: power_law_t
         
         !> Auxiliary work variables
         real(dp), allocatable, private :: log_x(:)
@@ -32,11 +33,21 @@ public :: power_law
         procedure :: core_cdf => pl_core_cdf
 
     end type
+
+    interface power_law
+        module procedure bind_power_law_object
+    end interface
       
 contains
 
+function bind_power_law_object(seed) result(pl_obj)
+        integer, intent(in), optional :: seed
+        type(power_law_t) :: pl_obj
+        call pl_obj%start_pl(seed)
+end function bind_power_law_object
+
 subroutine wake_up_power_law(this, seed)
-    class(power_law), intent(inout) :: this
+    class(power_law_t), intent(inout) :: this
     integer(i4), intent(in), optional :: seed
 
     if (present(seed)) then
@@ -47,7 +58,7 @@ subroutine wake_up_power_law(this, seed)
 end subroutine wake_up_power_law
 
 subroutine pl_pre_compute(this, r_data)
-    class(power_law), intent(inout) :: this
+    class(power_law_t), intent(inout) :: this
     type(empirical_data), intent(in) :: r_data
     integer(i4) :: N, i
 
@@ -73,7 +84,7 @@ subroutine pl_pre_compute(this, r_data)
 end subroutine
 
 subroutine pl_evaluate_tail(this, i, N, x_min_candidate, r_data, cdf_out, theta_out, std_theta_out)
-    class(power_law), intent(inout) :: this
+    class(power_law_t), intent(inout) :: this
     integer(i4), intent(in) :: i, N
     real(dp), intent(in) :: x_min_candidate
     type(empirical_data), intent(in) :: r_data
@@ -122,7 +133,7 @@ subroutine pl_evaluate_tail(this, i, N, x_min_candidate, r_data, cdf_out, theta_
 end subroutine
 
 subroutine pl_generate_rnd_array(this, rnd_array)
-    class(power_law), intent(in) :: this
+    class(power_law_t), intent(in) :: this
     real(dp), intent(inout) :: rnd_array(:)
     
     integer(i4) :: arr_size, j
@@ -148,26 +159,26 @@ subroutine pl_generate_rnd_array(this, rnd_array)
 end subroutine
 
 function pl_get_param_names(this) result(names)
-    class(power_law), intent(in) :: this
+    class(power_law_t), intent(in) :: this
     character(len=20), allocatable :: names(:)
     allocate(names(1))
     names(1) = "alpha"
 end function
 
 function alpha( this ) result(res)
-    class(power_law), intent(in) :: this
+    class(power_law_t), intent(in) :: this
     real(dp) :: res
     res = this%theta(1)
 end function
 
 function std_alpha( this ) result(res)
-    class(power_law), intent(in) :: this
+    class(power_law_t), intent(in) :: this
     real(dp) :: res
     res = this%std_theta(1)
 end function
 
 elemental function pl_core_pdf(this, x, discrete) result(res)
-    class(power_law), intent(in) :: this
+    class(power_law_t), intent(in) :: this
     real(dp), intent(in) :: x
     logical, intent(in)  :: discrete
     real(dp) :: res
@@ -183,7 +194,7 @@ elemental function pl_core_pdf(this, x, discrete) result(res)
 end function pl_core_pdf
 
 elemental function pl_core_cdf(this, x, discrete) result(res)
-    class(power_law), intent(in) :: this
+    class(power_law_t), intent(in) :: this
     real(dp), intent(in) :: x
     logical, intent(in)  :: discrete
     real(dp) :: res
