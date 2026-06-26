@@ -1,4 +1,4 @@
-module mle_fit_mod
+module run_mle_mod
 use mle_kinds_mod
 use rndgen_mod
 use dist_interface_mod
@@ -544,4 +544,4 @@ subroutine print_report(this)
     print *, ""
 end subroutine print_report
 
-end module mle_fit_mod
+end module run_mle_mod
