@@ -270,6 +270,11 @@ subroutine internal_core_fit( this, r_data, xmin, theta, std_theta, ks, lambda_i
         if ( abs(x_min_in - this%data%arr(i)) < bin_tolerance ) then
             x_min_pos = i
             exit find_x_min_pos_loop
+        else if ( this%data%arr(i) > x_min_in ) then
+            x_min_pos = i
+            print*, ""
+            print*, "Warning: x_min found is", this%data%arr(i)
+            exit find_x_min_pos_loop
         else
             cycle find_x_min_pos_loop
         endif
