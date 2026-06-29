@@ -20,3 +20,8 @@ source-form = "free"
 [dependencies]
 stdlib = "*"
 rndgen-fortran.git = "https://github.com/wcota/rndgen-fortran"
+
+[[test]]
+name = "check_sum"
+source-dir = "test"
+main = "check_sumTwoPL.f90"
